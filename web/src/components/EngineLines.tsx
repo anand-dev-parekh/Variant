@@ -1,36 +1,38 @@
-import { formatSanLine, formatScore } from '@variant/chess-core';
-import type { Analysis } from '../engine/stockfish';
+import { formatSanLine, formatScore, type Score } from '@variant/chess-core';
+
+export type DisplayLine = { score: Score; san: string[] };
 
 type Props = {
   fen: string;
-  analysis: Analysis | null;
-  enabled: boolean;
+  lines: DisplayLine[] | null;
+  /** e.g. "Saved · depth 18" or "Live · depth 14…" */
+  status: string;
   gameOver: string | null;
-  onToggle: () => void;
+  liveEnabled: boolean;
+  onToggleLive: () => void;
 };
 
 const MAX_PV_MOVES = 10;
 
-export function EngineLines({ fen, analysis, enabled, gameOver, onToggle }: Props) {
+export function EngineLines({ fen, lines, status, gameOver, liveEnabled, onToggleLive }: Props) {
   return (
     <section className="engine">
       <header className="engine-header">
-        <label className="toggle">
-          <input type="checkbox" checked={enabled} onChange={onToggle} />
-          Stockfish 19
+        <span className="engine-title">Stockfish 19</span>
+        <span className="muted">{status}</span>
+        <label className="toggle muted" title="Run Stockfish in your browser for positions without saved analysis">
+          <input type="checkbox" checked={liveEnabled} onChange={onToggleLive} />
+          live
         </label>
-        <span className="muted">
-          {enabled && analysis && `depth ${analysis.depth}${analysis.done ? '' : '…'}`}
-        </span>
       </header>
       {gameOver ? (
         <p className="muted engine-empty">{gameOver}</p>
-      ) : !enabled ? null : !analysis ? (
-        <p className="muted engine-empty">Thinking…</p>
+      ) : !lines ? (
+        <p className="muted engine-empty">{liveEnabled ? 'Thinking…' : 'No saved analysis for this position.'}</p>
       ) : (
         <ol className="engine-lines">
-          {analysis.lines.map((line) => (
-            <li key={line.multipv}>
+          {lines.map((line, i) => (
+            <li key={i}>
               <span className={`score ${scoreClass(line.score)}`}>{formatScore(line.score)}</span>
               <span className="pv">{formatSanLine(fen, line.san.slice(0, MAX_PV_MOVES))}</span>
             </li>
@@ -41,7 +43,7 @@ export function EngineLines({ fen, analysis, enabled, gameOver, onToggle }: Prop
   );
 }
 
-function scoreClass(score: { cp?: number; mate?: number }) {
+function scoreClass(score: Score) {
   const v = score.mate ?? score.cp ?? 0;
   return v > 0 ? 'white-better' : v < 0 ? 'black-better' : '';
 }

@@ -1,20 +1,30 @@
 import { useState, type ChangeEvent } from 'react';
-import { OPERA_GAME_PGN, parseGame, type ParsedGame } from '@variant/chess-core';
+import { useMutation } from 'convex/react';
+import { ConvexError } from 'convex/values';
+import { OPERA_GAME_PGN, parseGame } from '@variant/chess-core';
+import { api } from '../../convex/_generated/api';
+import type { Id } from '../../convex/_generated/dataModel';
 
 type Props = {
-  onLoad: (game: ParsedGame) => void;
-  onCancel?: () => void;
+  onCreated: (gameId: Id<'games'>) => void;
 };
 
-export function ImportPanel({ onLoad, onCancel }: Props) {
+export function ImportPanel({ onCreated }: Props) {
+  const create = useMutation(api.games.create);
   const [pgn, setPgn] = useState('');
   const [error, setError] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
 
-  function analyze(text: string) {
+  async function analyze(text: string) {
+    setError(null);
     try {
-      onLoad(parseGame(text));
+      parseGame(text); // Fail fast on a bad PGN before the round trip.
+      setSubmitting(true);
+      onCreated(await create({ pgn: text }));
     } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
+      setError(err instanceof ConvexError ? String(err.data) : err instanceof Error ? err.message : String(err));
+    } finally {
+      setSubmitting(false);
     }
   }
 
@@ -41,21 +51,16 @@ export function ImportPanel({ onLoad, onCancel }: Props) {
       />
       {error && <p className="error">Couldn't read that PGN: {error}</p>}
       <div className="import-actions">
-        <button className="primary" disabled={!pgn.trim()} onClick={() => analyze(pgn)}>
-          Analyze
+        <button className="primary" disabled={!pgn.trim() || submitting} onClick={() => analyze(pgn)}>
+          {submitting ? 'Importing…' : 'Analyze'}
         </button>
         <label className="button">
           Upload .pgn
           <input type="file" accept=".pgn,text/plain" onChange={onFile} hidden />
         </label>
-        <button className="link" onClick={() => analyze(OPERA_GAME_PGN)}>
+        <button className="link" disabled={submitting} onClick={() => analyze(OPERA_GAME_PGN)}>
           Try a sample game
         </button>
-        {onCancel && (
-          <button className="link" onClick={onCancel}>
-            Cancel
-          </button>
-        )}
       </div>
     </section>
   );

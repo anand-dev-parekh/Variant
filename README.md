@@ -7,8 +7,9 @@ Stockfish and deterministic code decide what is true; the LLM only explains it.
 
 | Path | What |
 | --- | --- |
-| `web/` | Vite + React app (board, move list, in-browser Stockfish) |
-| `packages/chess-core/` | Shared TypeScript: PGN parsing, UCI parsing, scores / win % |
+| `web/src/` | Vite + React app (board, move list, in-browser Stockfish for unanalyzed positions) |
+| `web/convex/` | Convex backend: schema, game import, the engine pass, move classification |
+| `packages/chess-core/` | Shared TypeScript: PGN/UCI parsing, win %, move classification |
 
 ## Develop
 
@@ -16,20 +17,39 @@ Requires Node 20+.
 
 ```bash
 npm install
+npm run convex     # Convex backend; keep running (first run sets up a deployment)
 npm run dev        # http://localhost:5173
 npm test           # chess-core unit tests
 npm run typecheck
 ```
 
-`npm run dev` copies the lite single-threaded Stockfish build from `node_modules/stockfish`
-into `web/public/stockfish/` (git-ignored).
+To try it without a Convex account, start the backend with
+`CONVEX_AGENT_MODE=anonymous npm run convex`, which runs a local Convex backend.
+
+`npm install` runs `web/scripts/prepare-stockfish.mjs`, which takes the lite single-threaded
+Stockfish build from `node_modules/stockfish` and writes (both git-ignored):
+
+- `web/public/stockfish/`: the browser Web Worker
+- `web/vendor/stockfish/`: a patched copy for Convex Node actions, with the `.wasm` embedded as
+  base64. The full npm package (~200 MB) is too big to deploy to Convex.
+
+### Analysis pipeline
+
+1. `games.create` stores the PGN and its main line as `nodes`, then schedules `engine.analyzeGame`.
+2. `engine.analyzeGame` analyzes each position at depth 18, MultiPV 3, saving to `analyses` (keyed
+   by position, so repeated positions are free). It runs in 60 s slices and reschedules itself.
+3. `pipeline.finalize` classifies every move (Lichess win-% thresholds plus mate rules), marks
+   critical moments, and adds the engine's top alternatives there as `engine` nodes.
+
+Thresholds live in `packages/chess-core/src/classify.ts`. After changing them, rerun step 3 on a game:
+`npx convex run pipeline:reclassify '{"gameId": "…"}'` (from `web/`).
 
 Keys: ← → step, ↑ ↓ start/end, `f` flip board.
 
 ## Status
 
 - [x] M1 — Board + PGN import + browser Stockfish evals
-- [ ] M2 — Server engine pass, move classification, critical moments (Convex)
+- [x] M2 — Server engine pass, move classification, critical moments (Convex)
 - [ ] M3 — Tree view
 - [ ] M4 — Node chat
 - [ ] M5 — What-if branches
