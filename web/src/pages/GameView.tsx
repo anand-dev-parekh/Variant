@@ -7,6 +7,7 @@ import type { Id } from '../../convex/_generated/dataModel';
 import { EngineLines, type DisplayLine } from '../components/EngineLines';
 import { EvalBar } from '../components/EvalBar';
 import { GameTreeView } from '../components/GameTreeView';
+import { TopBar } from '../components/TopBar';
 import { GLYPHS, MoveList } from '../components/MoveList';
 import { useAnalysis } from '../engine/useAnalysis';
 import { GameTree, type TreeNode } from '../lib/tree';
@@ -23,7 +24,12 @@ export function GameView({ gameId }: { gameId: Id<'games'> }) {
   const tree = useMemo(() => (data ? new GameTree(data.nodes) : null), [data?.nodes]);
 
   if (data === undefined) return <p className="muted center">Loading…</p>;
-  if (data === null || !tree) return <p className="center">Game not found. <a href="#/">Import a game</a></p>;
+  if (data === null || !tree)
+    return (
+      <p className="center">
+        Game not found. <a href="#/">Import a game</a>
+      </p>
+    );
   return <Explorer data={data} tree={tree} />;
 }
 
@@ -80,95 +86,106 @@ function Explorer({ data, tree }: { data: TreeData; tree: GameTree }) {
   }, [tree, node, go]);
 
   return (
-    <main className="app">
-      <header className="game-header">
-        <div>
-          <strong>{game.white}</strong> <span className="muted">vs</span> <strong>{game.black}</strong>
-          <span className="result">{game.result}</span>
-          {game.event && (
-            <span className="muted">
-              {' '}
-              · {game.event}
-              {game.date && ` · ${game.date}`}
-            </span>
-          )}
-        </div>
-        <a className="link" href="#/">
+    <>
+      <TopBar>
+        <a className="button ghost" href="#/">
           New game
         </a>
-      </header>
-
-      {game.status === 'analyzing' && (
-        <div className="progress" role="progressbar" aria-valuenow={progress.done} aria-valuemax={progress.total}>
-          <div className="progress-fill" style={{ width: `${(100 * progress.done) / Math.max(1, progress.total)}%` }} />
-          <span>
-            Analyzing positions at depth {game.depth}… {progress.done}/{progress.total}
+      </TopBar>
+      <main className="app">
+        <header className="game-header">
+          <h1 className="game-title">
+            {game.white} <span className="muted-serif">vs</span> {game.black}
+          </h1>
+          <span className="game-card-meta">
+            <span className="result">{game.result}</span>
+            {[game.event, game.date?.replaceAll('.', '-')].filter(Boolean).join(' · ')}
           </span>
-        </div>
-      )}
-      {game.status === 'failed' && <p className="error">Analysis failed: {game.error}</p>}
-      {game.status === 'ready' && <Summary tree={tree} white={game.white} black={game.black} />}
+        </header>
 
-      <div className="workspace">
-        <div className="board-area">
-          <EvalBar score={barScore} orientation={orientation} />
-          <div className="board">
-            <Chessboard
-              options={{
-                id: 'main',
-                position: node.fen,
-                boardOrientation: orientation,
-                allowDragging: false,
-                animationDurationInMs: 150,
-                squareStyles: node.moveUci
-                  ? { [node.moveUci.slice(0, 2)]: LAST_MOVE_STYLE, [node.moveUci.slice(2, 4)]: LAST_MOVE_STYLE }
-                  : {},
-                arrows: best?.pv[0]
-                  ? [
-                      {
-                        startSquare: best.pv[0].slice(0, 2),
-                        endSquare: best.pv[0].slice(2, 4),
-                        color: 'rgba(40, 120, 220, 0.75)',
-                      },
-                    ]
-                  : [],
-              }}
+        {game.status === 'analyzing' && (
+          <div className="progress" role="progressbar" aria-valuenow={progress.done} aria-valuemax={progress.total}>
+            <div
+              className="progress-fill"
+              style={{ width: `${(100 * progress.done) / Math.max(1, progress.total)}%` }}
             />
+            <span>
+              Analyzing positions at depth {game.depth}… {progress.done}/{progress.total}
+            </span>
           </div>
-        </div>
+        )}
+        {game.status === 'failed' && <p className="error">Analysis failed: {game.error}</p>}
+        {game.status === 'ready' && <Summary tree={tree} white={game.white} black={game.black} />}
 
-        <GameTreeView tree={tree} selectedId={node._id} onSelect={setSelectedId} />
+        <div className="workspace">
+          <div className="board-area">
+            <EvalBar score={barScore} orientation={orientation} />
+            <div className="board">
+              <Chessboard
+                options={{
+                  id: 'main',
+                  position: node.fen,
+                  boardOrientation: orientation,
+                  allowDragging: false,
+                  animationDurationInMs: 150,
+                  squareStyles: node.moveUci
+                    ? { [node.moveUci.slice(0, 2)]: LAST_MOVE_STYLE, [node.moveUci.slice(2, 4)]: LAST_MOVE_STYLE }
+                    : {},
+                  arrows: best?.pv[0]
+                    ? [
+                        {
+                          startSquare: best.pv[0].slice(0, 2),
+                          endSquare: best.pv[0].slice(2, 4),
+                          color: 'rgba(40, 120, 220, 0.75)',
+                        },
+                      ]
+                    : [],
+                }}
+              />
+            </div>
+          </div>
 
-        <aside className="side">
-          <EngineLines
-            fen={node.fen}
-            lines={lines}
-            status={status}
-            gameOver={terminal ? GAME_OVER_TEXT[terminal](node.fen) : null}
-            liveEnabled={liveEnabled}
-            onToggleLive={() => setLiveEnabled((on) => !on)}
-          />
-          {node.source !== 'game' && (
-            <p className="branch-note">
-              Engine line — not played in the game.{' '}
-              <button className="link" onClick={() => go(nearestMainline(tree, node))}>
-                Back to game
+          <GameTreeView tree={tree} selectedId={node._id} onSelect={setSelectedId} />
+
+          <aside className="side">
+            <EngineLines
+              fen={node.fen}
+              lines={lines}
+              status={status}
+              gameOver={terminal ? GAME_OVER_TEXT[terminal](node.fen) : null}
+              liveEnabled={liveEnabled}
+              onToggleLive={() => setLiveEnabled((on) => !on)}
+            />
+            {node.source !== 'game' && (
+              <p className="branch-note">
+                Engine line — not played in the game.{' '}
+                <button className="link" onClick={() => go(nearestMainline(tree, node))}>
+                  Back to game
+                </button>
+              </p>
+            )}
+            <MoveList tree={tree} selectedId={node._id} onSelect={setSelectedId} />
+            <nav className="controls" aria-label="Move navigation">
+              <button onClick={() => go(tree.root)} title="Start (↑)">
+                ⏮
               </button>
-            </p>
-          )}
-          <MoveList tree={tree} selectedId={node._id} onSelect={setSelectedId} />
-          <nav className="controls" aria-label="Move navigation">
-            <button onClick={() => go(tree.root)} title="Start (↑)">⏮</button>
-            <button onClick={() => go(tree.parentOf(node))} title="Back (←)">◀</button>
-            <button onClick={() => go(tree.next(node))} title="Forward (→)">▶</button>
-            <button onClick={() => go(tree.lineFrom(node).at(-1))} title="End of line (↓)">⏭</button>
-            <button onClick={() => setOrientation((o) => (o === 'white' ? 'black' : 'white'))} title="Flip board (f)">
-              ⇅
-            </button>
-          </nav>
-        </aside>
-      </div>
-    </main>
+              <button onClick={() => go(tree.parentOf(node))} title="Back (←)">
+                ◀
+              </button>
+              <button onClick={() => go(tree.next(node))} title="Forward (→)">
+                ▶
+              </button>
+              <button onClick={() => go(tree.lineFrom(node).at(-1))} title="End of line (↓)">
+                ⏭
+              </button>
+              <button onClick={() => setOrientation((o) => (o === 'white' ? 'black' : 'white'))} title="Flip board (f)">
+                ⇅
+              </button>
+            </nav>
+          </aside>
+        </div>
+      </main>
+    </>
   );
 }
 
