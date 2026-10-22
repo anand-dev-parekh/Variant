@@ -94,4 +94,5 @@ Fonts (Google Fonts, `index.html`): IBM Plex Serif for headings, Inter for UI, I
 PGN and numbers.
 
 Shared pieces: `TopBar` (sticky header; `narrow` aligns it with the 1200 px landing frame),
-`TreePreview` (static, hand-placed illustration of the tree on the landing page; not real data).
+`TreePreview` (the landing page's picture of the tree: the Opera Game drawn with the real tree's
+metro classes and real positions, with hand-placed, illustrative verdicts).
