@@ -6,6 +6,7 @@ import { api } from '../../convex/_generated/api';
 import type { Id } from '../../convex/_generated/dataModel';
 import { EngineLines, type DisplayLine } from '../components/EngineLines';
 import { EvalBar } from '../components/EvalBar';
+import { GameTreeView } from '../components/GameTreeView';
 import { GLYPHS, MoveList } from '../components/MoveList';
 import { useAnalysis } from '../engine/useAnalysis';
 import { GameTree, type TreeNode } from '../lib/tree';
@@ -135,6 +136,8 @@ function Explorer({ data, tree }: { data: TreeData; tree: GameTree }) {
             />
           </div>
         </div>
+
+        <GameTreeView tree={tree} selectedId={node._id} onSelect={setSelectedId} />
 
         <aside className="side">
           <EngineLines

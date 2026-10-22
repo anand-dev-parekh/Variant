@@ -11,10 +11,12 @@
     "prebuild": "node scripts/prepare-stockfish.mjs",
     "build": "tsc -p . && vite build",
     "preview": "vite preview",
-    "typecheck": "tsc -p . && tsc -p convex"
+    "typecheck": "tsc -p . && tsc -p convex",
+    "test": "vitest run"
   },
   "dependencies": {
     "@variant/chess-core": "*",
+    "@xyflow/react": "12.12.0",
     "chess.js": "1.4.0",
     "convex": "1.47.0",
     "react": "19.3.1",
@@ -28,6 +30,7 @@
     "@types/react-dom": "^19.0.0",
     "@vitejs/plugin-react": "4.7.0",
     "typescript": "5.9.3",
-    "vite": "6.4.5"
+    "vite": "6.4.5",
+    "vitest": "3.2.7"
   }
 }

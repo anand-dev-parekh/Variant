@@ -89,7 +89,7 @@ a.link {
 }
 
 .app {
-  max-width: 1200px;
+  max-width: 1560px;
   margin: 0 auto;
   padding: 24px 16px;
 }
@@ -147,9 +147,27 @@ a.link {
 
 .workspace {
   display: grid;
-  grid-template-columns: minmax(0, 620px) minmax(280px, 1fr);
+  grid-template-columns: minmax(0, 560px) minmax(300px, 1fr) minmax(280px, 340px);
+  grid-template-areas: 'board tree side';
   gap: 20px;
   align-items: start;
+}
+
+.board-area {
+  grid-area: board;
+}
+.tree-panel {
+  grid-area: tree;
+}
+.side {
+  grid-area: side;
+}
+
+@media (max-width: 1240px) {
+  .workspace {
+    grid-template-columns: minmax(0, 560px) minmax(280px, 1fr);
+    grid-template-areas: 'board side' 'tree tree';
+  }
 }
 
 .board-area {
@@ -325,6 +343,7 @@ a.link {
 @media (max-width: 860px) {
   .workspace {
     grid-template-columns: 1fr;
+    grid-template-areas: 'board' 'side' 'tree';
   }
 }
 
@@ -474,4 +493,132 @@ a {
 
 .engine-header .muted:first-of-type {
   flex: 1;
+}
+
+/* Variation tree */
+
+.tree-panel {
+  height: min(640px, 78vh);
+  min-height: 360px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.tree-panel .react-flow {
+  --xy-background-color: transparent;
+  --xy-edge-stroke: var(--border);
+  --xy-edge-stroke-width: 1.5;
+  --xy-controls-button-background-color: var(--panel);
+  --xy-controls-button-background-color-hover: var(--bg);
+  --xy-controls-button-color: var(--text);
+  --xy-controls-button-border-color: var(--border);
+}
+
+.tree-panel .react-flow__handle {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.tree-panel .react-flow__node {
+  cursor: pointer;
+}
+
+.tree-panel .react-flow__edge.on-path .react-flow__edge-path {
+  stroke: var(--accent);
+  stroke-width: 2;
+}
+.tree-panel .react-flow__edge.edge-engine .react-flow__edge-path {
+  stroke-dasharray: 4 3;
+}
+
+.tree-box {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 144px;
+  height: 32px;
+  padding: 0 10px;
+  border: 1.5px solid var(--border);
+  border-left-width: 4px;
+  border-radius: 6px;
+  background: var(--panel);
+  color: var(--text);
+  font-size: 13px;
+  white-space: nowrap;
+}
+
+.tree-box:hover {
+  background: var(--bg);
+}
+
+.tree-label {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.tree-box.best,
+.tree-box.good {
+  border-left-color: var(--best);
+}
+.tree-box.inaccuracy {
+  border-left-color: var(--inaccuracy);
+}
+.tree-box.mistake {
+  border-left-color: var(--mistake);
+}
+.tree-box.blunder {
+  border-left-color: var(--blunder);
+}
+.tree-box.inaccuracy .tree-label,
+.tree-box.mistake .tree-label,
+.tree-box.blunder .tree-label {
+  font-weight: 600;
+}
+
+.tree-box.source-engine {
+  border-style: dashed;
+  border-left-style: solid;
+  color: var(--muted);
+}
+.tree-box.source-user {
+  border-color: var(--critical);
+}
+
+.tree-box.run {
+  border-left-width: 1.5px;
+  border-style: dashed;
+  color: var(--muted);
+  background: var(--bg);
+}
+.run-count {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 1px 5px;
+  border-radius: 8px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+}
+
+.tree-box.on-path {
+  border-top-color: var(--accent);
+  border-right-color: var(--accent);
+  border-bottom-color: var(--accent);
+}
+.tree-box.selected {
+  background: var(--active);
+  font-weight: 600;
+  box-shadow: 0 0 0 2px var(--accent);
+}
+
+.tree-actions {
+  display: flex;
+  gap: 6px;
+}
+.tree-actions button {
+  padding: 3px 9px;
+  font-size: 12px;
 }
