@@ -50,7 +50,7 @@ Server engine output for one position, shared by every node (in any game) with t
 | Field | Notes |
 | --- | --- |
 | `positionKey`, `fen` | The FEN that was actually searched is kept for re-checking |
-| `engine` | Which engine produced it: `stockfish-19` (native service) or `stockfish-19-lite` (WASM fallback) |
+| `engine` | Which engine produced it (`stockfish-19`). If the engine or its settings change, purge and reanalyze ([pipeline](analysis-pipeline.md)) so results aren't mixed |
 | `depth`, `multiPv` | Depth actually reached (forced mates can stop short of the target) |
 | `terminal?` | `checkmate` · `stalemate` · `insufficient`; such positions have no lines |
 | `lines` | Best first. Each: `score` (White POV), `pv` (UCI moves), `san` (same moves in SAN) |

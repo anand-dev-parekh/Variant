@@ -4,6 +4,5 @@ dist/
 .DS_Store
 .env*.local
 
-# Generated from node_modules/stockfish by web/scripts/prepare-stockfish.mjs
+# Copied from node_modules/stockfish by web/scripts/prepare-stockfish.mjs
 web/public/stockfish/
-web/vendor/

@@ -1,19 +1,28 @@
-import { sideToMove, terminalState, toWhitePov, uciLineToSan, type Score } from '@variant/chess-core';
+import { sideToMove, terminalState, toWhitePov, uciLineToSan, type Score, type Terminal } from '@variant/chess-core';
 import { env } from '../_generated/server';
-import type { ServerAnalysis } from './stockfish';
 
-export const REMOTE_ENGINE_NAME = 'stockfish-19';
+/** Recorded on every saved analysis, so results from different engines are never mixed up. */
+export const ENGINE_NAME = 'stockfish-19';
+
+export type ServerAnalysis = {
+  depth: number;
+  terminal?: Terminal;
+  /** Best first, White POV. */
+  lines: { score: Score; pv: string[]; san: string[] }[];
+};
 
 type ServiceResponse = {
   depth: number;
   lines: { multipv: number; depth: number; score: Score; pv: string[] }[];
 };
 
-/** The native engine service (engine/server.mjs), if ENGINE_URL and ENGINE_TOKEN are set. */
-export function remoteEngineConfig(): { url: string; token: string } | null {
+/** The native engine service (engine/server.mjs), from ENGINE_URL and ENGINE_TOKEN. */
+export function remoteEngineConfig(): { url: string; token: string } {
   const url = env.ENGINE_URL;
   const token = env.ENGINE_TOKEN;
-  if (!url || !token) return null;
+  if (!url || !token) {
+    throw new Error('Engine service not configured: set ENGINE_URL and ENGINE_TOKEN (see docs/engines.md)');
+  }
   // Accept a bare host ("variant-engine.fly.dev") as well as a full URL.
   const withScheme = /^https?:\/\//.test(url) ? url : `https://${url}`;
   return { url: withScheme.replace(/\/$/, ''), token };

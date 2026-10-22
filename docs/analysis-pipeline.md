@@ -34,15 +34,14 @@ sequenceDiagram
   root first, each pointing at the previous one.
 - Schedules `internal.engine.analyzeGame` and returns the id.
 
-## 2. Engine pass (`engine.analyzeGame`, Node action)
+## 2. Engine pass (`engine.analyzeGame`, action)
 
 - Asks `pipeline.pendingPositions` for main-line positions with no saved analysis
   (deduplicated by `positionKey`, so repeated positions and positions already analyzed in other
   games are skipped).
-- Chooses an analyzer (`analyzer()` in `engine.ts`):
-  - **Engine service** when `ENGINE_URL` and `ENGINE_TOKEN` are set: 4 requests in flight
-    (`REMOTE_CONCURRENCY`).
-  - **WASM fallback** otherwise: one search at a time inside the action.
+- Sends them to the engine service (`ENGINE_URL`, `ENGINE_TOKEN`; the game fails with a clear
+  error if they're unset), 4 requests in flight (`CONCURRENCY`). The service queues what it can't
+  run at once.
 - Workers pull positions from a shared queue and save each result immediately with
   `pipeline.saveAnalysis`. That's what drives the progress bar.
 - **Time slicing.** Each run stops taking new positions after `RUN_BUDGET_MS = 60 s` and schedules
@@ -82,14 +81,17 @@ npx convex run pipeline:reclassify '{"gameId": "<id>"}'
 It deletes the game's `engine` nodes and runs `classifyAndBranch` again. It does not touch `user`
 nodes.
 
+To redo everything including the engine pass, use `pipeline:reanalyze` (same argument): it drops
+the engine branches, analyzes any positions without a saved analysis, and finalizes again. Pair
+it with `pipeline:purgeAnalyses '{"engine": "<name>"}'` to throw away analyses from a given engine
+(for example after changing engine version or settings) and recompute them.
+
 ## Timing (depth 18, MultiPV 3, per position)
 
 | Where | Typical |
 | --- | --- |
-| Native Stockfish on a laptop | 2–6 s |
-| WASM in a local Convex backend | 2–6 s |
-| WASM in Convex cloud | 6–17 s warm, up to ~29 s cold |
+| Engine service on Fly (`shared-cpu-2x`, 2 engines) | 1–2.3 s per search |
+| Native Stockfish on a laptop | 2–6 s per search |
 
-The cloud WASM numbers are why the engine service exists ([engines](engines.md)). A 40-move game
-has ~80 positions; with the service and 4 in flight, expect a minute or two, minus anything
-already cached.
+Measured end to end: a 65-move game (130 positions) finished in about 50 s, with some positions
+already cached. The old WASM-in-Convex engine took 6–17 s per position ([decisions](decisions.md)).

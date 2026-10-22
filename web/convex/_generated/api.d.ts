@@ -11,7 +11,6 @@
 import type * as engine from "../engine.js";
 import type * as games from "../games.js";
 import type * as lib_remoteEngine from "../lib/remoteEngine.js";
-import type * as lib_stockfish from "../lib/stockfish.js";
 import type * as pipeline from "../pipeline.js";
 
 import type {
@@ -24,7 +23,6 @@ declare const fullApi: ApiFromModules<{
   engine: typeof engine;
   games: typeof games;
   "lib/remoteEngine": typeof lib_remoteEngine;
-  "lib/stockfish": typeof lib_stockfish;
   pipeline: typeof pipeline;
 }>;
 

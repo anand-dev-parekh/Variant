@@ -1,10 +1,7 @@
-'use node';
-
 import { v } from 'convex/values';
 import { internal } from './_generated/api';
 import { internalAction } from './_generated/server';
-import { REMOTE_ENGINE_NAME, analyzeRemote, remoteEngineConfig } from './lib/remoteEngine';
-import { ENGINE_NAME as WASM_ENGINE_NAME, analyzePosition, type ServerAnalysis } from './lib/stockfish';
+import { ENGINE_NAME, analyzeRemote, remoteEngineConfig } from './lib/remoteEngine';
 
 /**
  * Each run analyzes positions for at most this long, then schedules a fresh run.
@@ -12,35 +9,16 @@ import { ENGINE_NAME as WASM_ENGINE_NAME, analyzePosition, type ServerAnalysis }
  */
 const RUN_BUDGET_MS = 60_000;
 
-/** Positions in flight at once on the engine service (it runs one engine per CPU). */
-const REMOTE_CONCURRENCY = 4;
-
-type Analyzer = {
-  name: string;
-  concurrency: number;
-  analyze: (fen: string, opts: { depth: number; multiPv: number }) => Promise<ServerAnalysis>;
-};
-
-/** The native engine service when configured, else WASM Stockfish in this Node process. */
-function analyzer(): Analyzer {
-  const remote = remoteEngineConfig();
-  if (remote) {
-    return {
-      name: REMOTE_ENGINE_NAME,
-      concurrency: REMOTE_CONCURRENCY,
-      analyze: (fen, opts) => analyzeRemote(remote, fen, opts),
-    };
-  }
-  return { name: WASM_ENGINE_NAME, concurrency: 1, analyze: analyzePosition };
-}
+/** Positions in flight at once on the engine service (it queues what it can't run yet). */
+const CONCURRENCY = 4;
 
 /** The engine pass over a game's main line. Reschedules itself until done, then finalizes. */
 export const analyzeGame = internalAction({
   args: { gameId: v.id('games') },
   handler: async (ctx, { gameId }) => {
     const started = Date.now();
-    const engine = analyzer();
     try {
+      const config = remoteEngineConfig();
       const pending = await ctx.runQuery(internal.pipeline.pendingPositions, { gameId });
       if (!pending) return;
 
@@ -52,17 +30,17 @@ export const analyzeGame = internalAction({
             outOfTime = true;
             return;
           }
-          const analysis = await engine.analyze(job.fen, { depth: pending.depth, multiPv: pending.multiPv });
+          const analysis = await analyzeRemote(config, job.fen, { depth: pending.depth, multiPv: pending.multiPv });
           await ctx.runMutation(internal.pipeline.saveAnalysis, {
             positionKey: job.positionKey,
             fen: job.fen,
-            engine: engine.name,
+            engine: ENGINE_NAME,
             multiPv: pending.multiPv,
             ...analysis,
           });
         }
       };
-      await Promise.all(Array.from({ length: engine.concurrency }, worker));
+      await Promise.all(Array.from({ length: CONCURRENCY }, worker));
 
       if (outOfTime) {
         await ctx.scheduler.runAfter(0, internal.engine.analyzeGame, { gameId });
@@ -79,11 +57,11 @@ export const analyzeGame = internalAction({
   },
 });
 
-/** How fast is the configured engine? `npx convex run engine:benchmark '{"depth": 18}'` */
+/** How fast is the engine service? `npx convex run engine:benchmark '{"depth": 18}'` */
 export const benchmark = internalAction({
   args: { depth: v.optional(v.number()) },
   handler: async (_ctx, { depth = 18 }) => {
-    const engine = analyzer();
+    const config = remoteEngineConfig();
     const fens = [
       'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1',
       'rn2kb1r/p3qppp/2p2n2/1p2p1B1/2B1P3/1QN5/PPP2PPP/R3K2R w KQkq - 0 10',
@@ -92,9 +70,9 @@ export const benchmark = internalAction({
     const results = [];
     for (const fen of fens) {
       const t0 = Date.now();
-      const analysis = await engine.analyze(fen, { depth, multiPv: 3 });
+      const analysis = await analyzeRemote(config, fen, { depth, multiPv: 3 });
       results.push({ ms: Date.now() - t0, depth: analysis.depth, best: analysis.lines[0]?.san.slice(0, 3).join(' ') });
     }
-    return { engine: engine.name, results };
+    return { engine: ENGINE_NAME, results };
   },
 });

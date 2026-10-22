@@ -29,10 +29,12 @@ dedicated `performance-*` machines, so it runs on `shared-cpu-2x`. Rejected: Ren
 (cheap tiers get a fraction of a CPU; Heroku also caps requests at 30 s). Cloud Run (free tier) and
 a $5 VPS remain good alternatives; switching only changes `ENGINE_URL`.
 
-**Follow-up:** remove the WASM-in-Convex fallback once the service is verified, so every stored
-analysis comes from the same engine. Mixing lite and full Stockfish results in the shared
-`analyses` cache would make classifications partly reflect the engine difference. Removing it
-also lets `engine.ts` drop `'use node'`. Keep the browser WASM engine; it's for live browsing.
+**Fallback removed.** The WASM-in-Convex engine was kept as a fallback until the service was
+proven, then deleted: mixing lite and full Stockfish results in the shared `analyses` cache would
+make classifications partly reflect the engine difference, and it took the most fragile code in
+the repo with it (base64 `.wasm`, patched Emscripten glue, a Node-only action). The trade-off: a
+local Convex backend now needs the engine service running locally too. The browser WASM engine
+stays; it's for live browsing.
 
 ## Deterministic engine settings
 

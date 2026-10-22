@@ -29,8 +29,8 @@ npm run typecheck
 ```
 
 No Convex account? `CONVEX_AGENT_MODE=anonymous npm run convex` runs a local backend.
-Without an engine service configured, analysis falls back to WASM Stockfish inside Convex; to use
-the native service see [docs/engines.md](docs/engines.md).
+Analysis needs the native engine service: set `ENGINE_URL` and `ENGINE_TOKEN` on your Convex
+deployment ([docs/engines.md](docs/engines.md) covers deploying it or running it locally).
 
 Keys in the explorer: ← → step, ↑ ↓ start/end, `f` flip board.
 

@@ -1,13 +1,14 @@
 # Engines
 
-Stockfish runs in three places. Only the first two ever produce stored analysis.
+Stockfish runs in two places. Only the engine service produces stored analysis, so every saved
+evaluation comes from the same engine with the same settings.
 
-| | Engine service | WASM in Convex (fallback) | WASM in the browser |
-| --- | --- | --- | --- |
-| Code | `engine/server.mjs` | `web/convex/lib/stockfish.ts` | `web/src/engine/stockfish.ts` |
-| Build | Stockfish 19 native (official Linux release) | Stockfish 19 lite, single-threaded | Stockfish 19 lite, single-threaded |
-| Used for | The analysis pass, when configured | The analysis pass, when the service isn't configured | Live evals of unanalyzed positions |
-| Writes to DB | Yes (`engine: 'stockfish-19'`) | Yes (`engine: 'stockfish-19-lite'`) | Never |
+| | Engine service | WASM in the browser |
+| --- | --- | --- |
+| Code | `engine/server.mjs` (called from `web/convex/lib/remoteEngine.ts`) | `web/src/engine/stockfish.ts` |
+| Build | Stockfish 19 native (official Linux release) | Stockfish 19 lite, single-threaded |
+| Used for | The analysis pass (required) | Live evals of positions without saved analysis |
+| Writes to DB | Yes (`engine: 'stockfish-19'`) | Never |
 
 ## Engine service (`engine/`)
 
@@ -101,28 +102,13 @@ ENGINE_TOKEN=dev STOCKFISH_PATH=$(which stockfish) node engine/server.mjs
 A **local** Convex backend can reach it (`npx convex env set ENGINE_URL http://localhost:8080`,
 `ENGINE_TOKEN dev`). A cloud deployment cannot reach your laptop.
 
-## WASM in Convex (fallback)
+## Removed: WASM in Convex
 
-Used when `ENGINE_URL`/`ENGINE_TOKEN` aren't set, so the project works with no service at all.
-It's a Node action (`'use node'`) running the lite build one search at a time.
-
-Getting the browser-oriented glue to run inside a Convex action took some patches, all in
-`web/scripts/prepare-stockfish.mjs` (runs on `npm install`, `dev` and `build`):
-
-- The `.wasm` is embedded as base64 in a generated module (`web/vendor/stockfish/wasm.ts`),
-  because the `stockfish` npm package (~200 MB) is too large to ship to Convex. The glue is
-  patched to read the bytes from a global instead of a file next to itself.
-- The glue sets the global `fetch` to `null` in Node, which breaks Convex's own calls. That
-  assignment is patched out.
-- Each patch must match exactly once, so a changed `stockfish` release fails the script loudly
-  instead of shipping a broken engine.
-
-Runtime quirks handled in `lib/stockfish.ts`: commands sent from inside the engine's output
-callback deadlock it, so output is delivered with `setImmediate`.
-
-**Status:** slated for removal once the engine service is confirmed working in production, so
-stored analyses all come from the same engine (mixing lite and full results would skew
-classifications). See [decisions](decisions.md).
+Until the service was deployed, analysis ran WASM Stockfish inside a Convex Node action, which
+needed the `.wasm` embedded as base64 and two patches to the Emscripten glue. It took 6–17 s per
+position in Convex cloud and timed out on deep positions, so it was removed; see
+[decisions](decisions.md). Analyses it saved (`engine: 'stockfish-19-lite'`) were purged with
+`pipeline:purgeAnalyses` and the games re-run with `pipeline:reanalyze`.
 
 ## WASM in the browser
 
