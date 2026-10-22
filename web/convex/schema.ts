@@ -49,6 +49,8 @@ export default defineSchema({
     winPercentLoss: v.optional(v.number()),
     onlyMove: v.optional(v.boolean()),
     critical: v.optional(v.boolean()),
+    /** One of a player's biggest slips that wasn't a mistake or blunder; branched like a critical move. */
+    keyMoment: v.optional(v.boolean()),
   })
     .index('by_gameId_and_ply', ['gameId', 'ply'])
     .index('by_gameId_and_source_and_ply', ['gameId', 'source', 'ply'])

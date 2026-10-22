@@ -63,7 +63,9 @@ move (`classifyAndBranch`):
    fixed score of a finished position).
 2. `judgeMove` returns `classification`, `winPercentLoss`, `onlyMove`, `critical`, which are
    patched onto the node. See [move classification](move-classification.md).
-3. At a critical move (a mistake or blunder), it takes the engine's best line from the position
+3. `pickKeyMoments` marks each player's biggest remaining slips as `keyMoment` (see
+   [move classification](move-classification.md#key-moments)).
+4. At a critical move or key moment, it takes the engine's best line from the position
    *before* the move that isn't the played move (`BRANCH_ALTERNATIVES = 1`), plays it for
    `BRANCH_PLIES = 5` plies, and inserts it as `engine` nodes under the parent position.
 

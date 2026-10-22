@@ -22,6 +22,7 @@
   --critical: #6d4ae0;
   --sq-light: #ece4d4;
   --sq-dark: #b59a76;
+  --key: #2f7f9e;
   --shadow: 0 1px 2px rgb(30 28 26 / 4%), 0 8px 24px rgb(30 28 26 / 6%);
   --font-sans: Inter, system-ui, -apple-system, 'Segoe UI', sans-serif;
   --font-serif: 'IBM Plex Serif', Georgia, 'Times New Roman', serif;
@@ -57,6 +58,7 @@
     --critical: #a78bfa;
     --sq-light: #8a83a8;
     --sq-dark: #5a527a;
+    --key: #5fb4d4;
     --shadow: 0 1px 2px rgb(0 0 0 / 30%), 0 12px 32px rgb(0 0 0 / 35%);
   }
 }
@@ -1373,4 +1375,85 @@ a {
   .floating-board {
     width: 160px;
   }
+}
+
+/* Eval graph and key moments */
+
+.eval-graph {
+  position: relative;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+  cursor: crosshair;
+  touch-action: none;
+}
+.eval-graph svg {
+  display: block;
+}
+.graph-black {
+  fill: #403d39;
+}
+.graph-white {
+  fill: #f4f2ee;
+}
+.graph-line {
+  fill: none;
+  stroke: var(--accent);
+  stroke-width: 1.5;
+}
+.graph-mid {
+  stroke: #8a857c;
+  stroke-width: 1;
+  stroke-dasharray: 3 3;
+}
+.graph-cursor {
+  stroke: var(--accent);
+  stroke-width: 1.5;
+}
+.graph-cursor.hover {
+  stroke-dasharray: 3 2;
+}
+.graph-mark {
+  stroke: #ffffff;
+  stroke-width: 1;
+}
+.graph-mark.inaccuracy {
+  fill: var(--inaccuracy);
+}
+.graph-mark.mistake {
+  fill: var(--mistake);
+}
+.graph-mark.blunder {
+  fill: var(--blunder);
+}
+.graph-mark.key {
+  fill: var(--key);
+}
+.graph-tip {
+  position: absolute;
+  top: 4px;
+  transform: translateX(-50%);
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+.metro-card.key {
+  border-color: color-mix(in srgb, var(--key) 55%, var(--border));
+  background: color-mix(in srgb, var(--key) 6%, var(--panel));
+}
+.metro-verdict.key,
+.verdict-pill.key {
+  color: var(--key);
+}
+.verdict-pill.key {
+  background: color-mix(in srgb, var(--key) 13%, transparent);
+}
+.legend-dot.key {
+  background: var(--key);
 }

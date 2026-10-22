@@ -56,6 +56,19 @@ Critical moves are where the tree branches: one engine line, the move that shoul
 played, five plies long (see [analysis pipeline](analysis-pipeline.md)). In the tree they're the
 cards with a mini board.
 
+## Key moments
+
+Strong players rarely blunder; they lose by being slowly outplayed. In Gukesh–Ding (WCh 2024,
+game 3) Black gave up ~58 win-% points over 37 moves without a single move losing 10, so there
+were no inaccuracies at all, yet White won.
+
+`pickKeyMoments` fills that gap: each player gets up to `KEY_MOMENTS_PER_SIDE = 2` turning points.
+Mistakes and blunders use them first; any left over go to that player's biggest remaining slips
+of at least `KEY_MOMENT_MIN_LOSS = 5` points, flagged `keyMoment`. A player with two or more
+mistakes gets none, so blunder-heavy games aren't padded. Key moments are never relabelled as
+mistakes. They're shown as their own thing (teal "Key moment" cards) and branch like critical
+moves.
+
 ## Tuning
 
 All numbers are in `THRESHOLDS`. After changing them, run the tests, then reclassify a few real

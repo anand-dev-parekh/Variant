@@ -100,3 +100,30 @@ function mateVerdict(best: Score, after: Score, mover: Color): Classification | 
   }
   return null;
 }
+
+/** Each player gets up to this many turning points (mistakes, blunders, then key moments). */
+export const KEY_MOMENTS_PER_SIDE = 2;
+/** A slip smaller than this (win-% points) is never a key moment: it's noise, not a story. */
+export const KEY_MOMENT_MIN_LOSS = 5;
+
+/**
+ * Key moments: each player's biggest slips that weren't mistakes or blunders. A clean game (two
+ * strong players, a slow squeeze) has no mistakes at all, yet someone lost; these are the moves
+ * where it happened. A player who already made enough mistakes gets none, so games full of
+ * blunders aren't padded.
+ * @returns indices into `moves` that are key moments
+ */
+export function pickKeyMoments(moves: { mover: Color; winPercentLoss: number; critical: boolean }[]): Set<number> {
+  const picked = new Set<number>();
+  for (const side of ['w', 'b'] as const) {
+    const own = moves.map((m, i) => ({ ...m, i })).filter((m) => m.mover === side);
+    const slots = KEY_MOMENTS_PER_SIDE - own.filter((m) => m.critical).length;
+    if (slots <= 0) continue;
+    own
+      .filter((m) => !m.critical && m.winPercentLoss >= KEY_MOMENT_MIN_LOSS)
+      .sort((a, b) => b.winPercentLoss - a.winPercentLoss)
+      .slice(0, slots)
+      .forEach((m) => picked.add(m.i));
+  }
+  return picked;
+}

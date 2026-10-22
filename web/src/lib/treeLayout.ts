@@ -4,7 +4,7 @@ import type { GameTree, TreeNode } from './tree';
 /** One box in the tree view: a single position, or a folded run of consecutive moves. */
 export type ViewItem = {
   id: string;
-  /** move: one position · card: a mistake or blunder, drawn large with a board · run: folded moves */
+  /** move: one position · card: a mistake, blunder or key moment, drawn large with a board · run: folded moves */
   kind: 'move' | 'card' | 'run';
   nodes: TreeNode[];
   column: number;
@@ -47,6 +47,7 @@ export function buildTreeView(tree: GameTree, revealed: ReadonlySet<Id<'nodes'>>
     return (
       node === tree.root ||
       !!node.critical ||
+      !!node.keyMoment ||
       MARKED.has(node.classification ?? '') ||
       tree.childrenOf(node).length > 1 ||
       tree.next(node) === undefined
@@ -69,7 +70,7 @@ export function buildTreeView(tree: GameTree, revealed: ReadonlySet<Id<'nodes'>>
       const first = nodes[0]!;
       const item: ViewItem = {
         id: nodes.length > 1 ? `run:${first._id}` : first._id,
-        kind: nodes.length > 1 ? 'run' : TURNING_POINTS.has(first.classification ?? '') ? 'card' : 'move',
+        kind: nodes.length > 1 ? 'run' : TURNING_POINTS.has(first.classification ?? '') || first.keyMoment ? 'card' : 'move',
         nodes,
         column,
         row: row + placed.length,

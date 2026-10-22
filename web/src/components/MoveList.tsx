@@ -12,7 +12,7 @@ export const GLYPHS: Record<string, string> = { inaccuracy: '?!', mistake: '?', 
 
 type Row = { number: string; white?: TreeNode; black?: TreeNode };
 
-/** The main line as numbered rows, with engine alternatives shown under each critical move. */
+/** The main line as numbered rows, with engine alternatives shown under each turning point. */
 export function MoveList({ tree, selectedId, onSelect }: Props) {
   const activeRef = useRef<HTMLButtonElement>(null);
 
@@ -38,7 +38,7 @@ export function MoveList({ tree, selectedId, onSelect }: Props) {
   return (
     <ol className="move-list">
       {toRows(tree.mainline.slice(1)).map((row) => {
-        const critical = [row.white, row.black].filter((n) => n?.critical) as TreeNode[];
+        const critical = [row.white, row.black].filter((n) => n?.critical || n?.keyMoment) as TreeNode[];
         return (
           <Fragment key={row.number}>
             <li className="move-row">

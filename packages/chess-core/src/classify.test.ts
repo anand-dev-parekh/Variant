@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { judgeMove, winPercentFor } from './classify';
+import { judgeMove, pickKeyMoments, winPercentFor } from './classify';
 import { parseGame } from './game';
 import { OPERA_GAME_PGN } from './samples';
 import { playUciLine, positionKey, terminalScore, terminalState } from './position';
@@ -62,6 +62,20 @@ describe('judgeMove', () => {
   it('treats a missed mate as a blunder', () => {
     const v = judgeMove({ mover: 'w', playedUci: 'a2a3', before: [{ score: { mate: 2 }, pv: ['d1h5'] }], after: { cp: 0 } });
     expect(v.classification).toBe('blunder');
+  });
+});
+
+describe('pickKeyMoments', () => {
+  const m = (mover: 'w' | 'b', winPercentLoss: number, critical = false) => ({ mover, winPercentLoss, critical });
+
+  it("picks each side's two biggest slips in a clean game", () => {
+    const moves = [m('w', 2), m('b', 9.2), m('w', 6), m('b', 7.6), m('w', 1), m('b', 5.1), m('b', 3)];
+    expect([...pickKeyMoments(moves)].sort()).toEqual([1, 2, 3]);
+  });
+
+  it('fills only the slots mistakes left open, and ignores tiny slips', () => {
+    const moves = [m('w', 40, true), m('w', 8), m('w', 6), m('b', 25, true), m('b', 30, true), m('b', 9), m('w', 4)];
+    expect([...pickKeyMoments(moves)]).toEqual([1]);
   });
 });
 

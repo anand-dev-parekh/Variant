@@ -1,5 +1,5 @@
 import { v } from 'convex/values';
-import { judgeMove, playUciLine, positionKey, terminalScore, type Score } from '@variant/chess-core';
+import { judgeMove, pickKeyMoments, playUciLine, positionKey, terminalScore, type Score } from '@variant/chess-core';
 import { internal } from './_generated/api';
 import type { Doc, Id } from './_generated/dataModel';
 import { MAX_NODES } from './games';
@@ -106,38 +106,40 @@ export const reclassify = internalMutation({
 
 async function classifyAndBranch(ctx: MutationCtx, gameId: Id<'games'>) {
   const nodes = await mainlineOf(ctx, gameId);
+  const judged = [];
   for (let i = 1; i < nodes.length; i++) {
     const parent = nodes[i - 1]!;
     const node = nodes[i]!;
     const before = await analysisFor(ctx, parent.positionKey);
     const after = await analysisFor(ctx, node.positionKey);
     if (!before || !after) throw new Error(`Missing analysis around ply ${node.ply}`);
+    const mover = parent.fen.split(' ')[1] === 'b' ? ('b' as const) : ('w' as const);
+    const verdict = judgeMove({ mover, playedUci: node.moveUci!, before: before.lines, after: scoreOf(after) });
+    judged.push({ parent, node, before, mover, verdict });
+  }
 
-    const verdict = judgeMove({
-      mover: parent.fen.split(' ')[1] === 'b' ? 'b' : 'w',
-      playedUci: node.moveUci!,
-      before: before.lines,
-      after: scoreOf(after),
-    });
-    await ctx.db.patch('nodes', node._id, verdict);
+  const keyMoments = pickKeyMoments(judged.map((j) => ({ mover: j.mover, ...j.verdict })));
+  for (const [i, { parent, node, before, verdict }] of judged.entries()) {
+    const keyMoment = keyMoments.has(i);
+    await ctx.db.patch('nodes', node._id, { ...verdict, keyMoment });
+    if (!verdict.critical && !keyMoment) continue;
 
-    if (verdict.critical) {
-      const alternatives = before.lines.filter((l) => l.pv[0] !== node.moveUci).slice(0, BRANCH_ALTERNATIVES);
-      for (const line of alternatives) {
-        let branchParent = parent._id;
-        let ply = parent.ply;
-        for (const step of playUciLine(parent.fen, line.pv.slice(0, BRANCH_PLIES))) {
-          branchParent = await ctx.db.insert('nodes', {
-            gameId,
-            parentId: branchParent,
-            fen: step.fen,
-            positionKey: positionKey(step.fen),
-            ply: ++ply,
-            moveSan: step.san,
-            moveUci: step.uci,
-            source: 'engine',
-          });
-        }
+    // Branch into what should have been played.
+    const alternatives = before.lines.filter((l) => l.pv[0] !== node.moveUci).slice(0, BRANCH_ALTERNATIVES);
+    for (const line of alternatives) {
+      let branchParent = parent._id;
+      let ply = parent.ply;
+      for (const step of playUciLine(parent.fen, line.pv.slice(0, BRANCH_PLIES))) {
+        branchParent = await ctx.db.insert('nodes', {
+          gameId,
+          parentId: branchParent,
+          fen: step.fen,
+          positionKey: positionKey(step.fen),
+          ply: ++ply,
+          moveSan: step.san,
+          moveUci: step.uci,
+          source: 'engine',
+        });
       }
     }
   }

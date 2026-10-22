@@ -6,6 +6,7 @@ import { api } from '../../convex/_generated/api';
 import type { Doc, Id } from '../../convex/_generated/dataModel';
 import { EngineLines, type DisplayLine } from '../components/EngineLines';
 import { EvalBar } from '../components/EvalBar';
+import { EvalGraph } from '../components/EvalGraph';
 import { GameTreeView, type Revealed } from '../components/GameTreeView';
 import { GLYPHS, MoveList } from '../components/MoveList';
 import { TopBar } from '../components/TopBar';
@@ -178,6 +179,7 @@ function Explorer({ data, tree }: { data: TreeData; tree: GameTree }) {
                 />
               </div>
             </div>
+            <EvalGraph tree={tree} analyses={analyses} selectedId={node._id} onSelect={setSelectedId} />
             <p className="best-strip" title="Engine's best line">
               {terminal ? (
                 GAME_OVER_TEXT[terminal](node.fen)
@@ -324,14 +326,20 @@ function PositionCard({
           {glyph && <span className={`metro-glyph ${node.classification}`}>{glyph}</span>}
         </h2>
         {node.classification && (
-          <span className={`verdict-pill ${node.classification}`}>
-            {VERDICT[node.classification]}
+          <span className={`verdict-pill ${node.keyMoment ? 'key' : node.classification}`}>
+            {node.keyMoment ? 'Key moment' : VERDICT[node.classification]}
             {node.winPercentLoss !== undefined && node.winPercentLoss >= 1 && ` · −${node.winPercentLoss.toFixed(0)}%`}
           </span>
         )}
       </div>
 
-      {node.critical && bestLabel && (
+      {node.keyMoment && (
+        <p className="position-note">
+          One of {node.fen.split(' ')[1] === 'b' ? 'White' : 'Black'}'s biggest slips in this game. Not a mistake on
+          its own, but this is where ground was lost.
+        </p>
+      )}
+      {(node.critical || node.keyMoment) && bestLabel && (
         <p className="position-note">
           The engine preferred <strong>{bestLabel}</strong>.{' '}
           {engineAlt && (

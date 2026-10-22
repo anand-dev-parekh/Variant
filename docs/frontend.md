@@ -20,8 +20,9 @@ for each position, and progress. It builds a `GameTree` and renders `Explorer`.
 Layout (`.workspace` grid): **board | tabbed panel**. Under 920 px they stack.
 
 - **Board column:** the board (`react-chessboard`) with the last move highlighted and an arrow
-  for the best move, the eval bar, a one-line strip with the engine's best line, and navigation
-  buttons.
+  for the best move, the eval bar, the **eval graph** (`EvalGraph`: White's win % across the main
+  line, with marks at inaccuracies, mistakes, blunders and key moments; click or drag to jump),
+  a one-line strip with the engine's best line, and navigation buttons.
 - **Panel tabs** (the chosen tab is remembered in `localStorage`, default Tree):
   - **Position:** the selected move in words: verdict and win-% lost, "the engine preferred …"
     with a link into that line, an only-move note, a "Back to game" link inside branches, then
@@ -51,7 +52,7 @@ our own pure function, `lib/treeLayout.ts` (`buildTreeView`), not a layout libra
 unit-tested in `treeLayout.test.ts`.
 
 It's drawn as a **metro map**: each position is a stop on a line, and branches peel off as their
-own lines. Mistakes and blunders on the main line become **cards** with a mini board
+own lines. Mistakes, blunders and key moments on the main line become **cards** with a mini board
 (`MiniBoard`), the verdict and win-% lost, the eval, and the engine's preferred move.
 
 ### Folding
@@ -78,7 +79,7 @@ are 280 px. Edges are a custom `elbow` edge: straight down a line, or down to th
 target row, across, and down, so connectors never cut through labels or cards.
 
 Visual encoding, with a legend in the panel: dot colour is the move's quality (amber
-inaccuracy, orange mistake, red blunder, hollow otherwise); engine lines are dashed; folded
+inaccuracy, orange mistake, red blunder, teal key moment, hollow otherwise); engine lines are dashed; folded
 stretches are dotted; user what-ifs have violet stops; the path from the start to the selected
 move and the selected stop's ring are in the accent colour. The view pans to the selection when it
 goes off-screen (keyboard navigation, folding, resizing), but never fights manual panning.

@@ -170,6 +170,10 @@ function TreeCanvas({ tree, analyses, selectedId, onSelect, revealed, setReveale
           Blunder ??
         </span>
         <span>
+          <i className="legend-dot key" />
+          Key moment
+        </span>
+        <span>
           <i className="legend-dash" />
           Engine line
         </span>
@@ -274,18 +278,19 @@ const MoveItem = memo(function MoveItem({ data }: NodeProps<ItemNode>) {
 
 const CardItem = memo(function CardItem({ data }: NodeProps<ItemNode>) {
   const node = data.item.nodes[0]!;
-  const verdict = node.classification === 'blunder' ? 'Blunder' : 'Mistake';
+  const kind = node.classification === 'blunder' || node.classification === 'mistake' ? node.classification : 'key';
+  const verdict = kind === 'blunder' ? 'Blunder' : kind === 'mistake' ? 'Mistake' : 'Key moment';
   return (
     <div className={`metro-item card ${data.selected ? 'selected' : ''}`} title={describe(node)}>
       <Handles />
       <span className={dotClass(node, data)} />
-      <div className={`metro-card ${node.classification} ${data.selected ? 'selected' : ''}`}>
+      <div className={`metro-card ${kind} ${data.selected ? 'selected' : ''}`}>
         <MiniBoard fen={node.fen} size={84} flipped={data.flipped} />
         <div className="metro-card-text">
           <span className="metro-label">
             <MoveLabel node={node} />
           </span>
-          <span className={`metro-verdict ${node.classification}`}>
+          <span className={`metro-verdict ${kind}`}>
             {verdict}
             {node.winPercentLoss !== undefined && ` · −${node.winPercentLoss.toFixed(0)}%`}
           </span>
@@ -350,6 +355,7 @@ function describe(node: TreeNode): string {
   const parts = [node.source === 'game' ? 'Played' : node.source === 'engine' ? 'Engine line' : 'Your what-if'];
   if (node.classification) parts.push(node.classification);
   if (node.winPercentLoss !== undefined && node.winPercentLoss >= 1) parts.push(`lost ${node.winPercentLoss.toFixed(0)}% win chance`);
+  if (node.keyMoment) parts.push('key moment');
   if (node.onlyMove) parts.push('only move');
   return parts.join(' · ');
 }

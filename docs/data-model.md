@@ -28,6 +28,7 @@ One position in a game's tree. The edge (the move into the position) is stored o
 | `source` | `game` (played), `engine` (alternative at a critical moment), `user` (what-if, M5) |
 | `classification?` | `best` · `good` · `inaccuracy` · `mistake` · `blunder`. Set on main-line moves at finalize |
 | `winPercentLoss?` | Win-% points the mover gave up versus the best move |
+| `keyMoment?` | One of a player's biggest slips that wasn't a mistake or blunder; branched like a critical move |
 | `onlyMove?`, `critical?` | `critical` = a mistake or blunder (where the tree branches). See [move classification](move-classification.md) |
 
 Indexes:
