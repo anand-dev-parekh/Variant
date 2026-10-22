@@ -58,25 +58,38 @@ runtime), checks its SHA-256, runs as the `node` user. `.dockerignore` allows on
 `package.json` and `server.mjs` into the build. To upgrade Stockfish, change both
 `STOCKFISH_RELEASE` and `STOCKFISH_SHA256`.
 
-### Deploying (Railway)
+### Deploying (Fly.io, current)
 
-From `engine/`, with the Railway CLI (`npx @railway/cli …` works without installing):
+Production runs on Fly as `variant-engine` (`https://variant-engine.fly.dev`), configured by
+`engine/fly.toml`: one `shared-cpu-2x` machine (1 GB, `POOL_SIZE=2`) in `iad`, near Convex. The
+machine stops when idle and starts on the next request, so it bills only while analyzing; the
+client's retries cover the start-up delay. Measured: 1–2.3 s per position at depth 18, MultiPV 3.
+
+From `engine/` (install flyctl with `curl -L https://fly.io/install.sh | sh`):
 
 ```bash
+fly launch --copy-config --no-deploy                # first time only: creates the app
 TOKEN=$(openssl rand -hex 32)
-railway init --name variant-engine
-railway add --service engine --variables "ENGINE_TOKEN=$TOKEN" --variables "POOL_SIZE=1" --variables "HASH_MB=64"
-railway up --service engine --detach
-railway domain --service engine                     # → https://…up.railway.app
+fly secrets set ENGINE_TOKEN=$TOKEN
+fly deploy --ha=false                               # one machine, not Fly's default two
 
 cd ../web
-npx convex env set ENGINE_URL https://<domain>
+npx convex env set ENGINE_URL https://variant-engine.fly.dev
 npx convex env set ENGINE_TOKEN "$TOKEN"
 npx convex run engine:benchmark '{"depth": 18}'     # should report engine "stockfish-19"
 ```
 
-Match `POOL_SIZE` to the plan's vCPUs (Railway's free tier: 1 vCPU / 0.5 GB). Any host that runs a
-Dockerfile works the same way (Fly.io, a VPS).
+Dedicated `performance-*` machines are faster under sustained load, but new Fly organizations
+must ask billing@fly.io to enable them. Shared CPUs burst to full speed and are throttled only
+under long sustained load; one game at a time mostly fits in the burst.
+
+### Deploying elsewhere
+
+Any Docker host works; only `ENGINE_URL`/`ENGINE_TOKEN` change. Railway (`railway init`,
+`railway add --service engine --variables …`, `railway up`, `railway domain`), Google Cloud Run
+(free tier, scales to zero), or a $5 VPS with Caddy for HTTPS. Avoid hosts whose cheap plans give
+a fraction of a CPU (Render/Heroku free and starter tiers) or cap request time at 30 s (Heroku).
+Set `POOL_SIZE` to the machine's vCPUs.
 
 ### Running locally
 

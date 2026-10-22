@@ -52,7 +52,7 @@ export const analyzeGame = internalAction({
             outOfTime = true;
             return;
           }
-          const analysis = await engine.analyze(job.fen, pending);
+          const analysis = await engine.analyze(job.fen, { depth: pending.depth, multiPv: pending.multiPv });
           await ctx.runMutation(internal.pipeline.saveAnalysis, {
             positionKey: job.positionKey,
             fen: job.fen,

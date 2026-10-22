@@ -19,10 +19,15 @@ fixed, is deterministic, and is easy to test. React Flow still does rendering, p
 ## Native Stockfish service for the analysis pass
 
 WASM Stockfish inside Convex cloud actions took 6–17 s per position (up to ~29 s cold), so a game
-took many minutes. Native Stockfish is roughly 2–4× faster per search (2–6 s on a laptop) and
-allows several searches in parallel. Railway was chosen over Fly.io for cost at prototype scale (free tier and $5 Hobby
-plan; Fly has no free tier). The service is a single dependency-free file so it runs on any
-Docker host.
+took many minutes, and deep positions hit the 90 s search timeout. Native Stockfish on Fly
+measures 1–2.3 s per position and runs several searches in parallel. The service is a single
+dependency-free file so it runs on any Docker host.
+
+Hosting: Railway was the first choice (free tier, $5 Hobby plan) but had an outage during setup.
+Fly.io is used instead: pay-per-second with auto-stop, so cost tracks usage. New Fly orgs can't use
+dedicated `performance-*` machines, so it runs on `shared-cpu-2x`. Rejected: Render and Heroku
+(cheap tiers get a fraction of a CPU; Heroku also caps requests at 30 s). Cloud Run (free tier) and
+a $5 VPS remain good alternatives; switching only changes `ENGINE_URL`.
 
 **Follow-up:** remove the WASM-in-Convex fallback once the service is verified, so every stored
 analysis comes from the same engine. Mixing lite and full Stockfish results in the shared

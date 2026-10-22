@@ -13,7 +13,10 @@ type ServiceResponse = {
 export function remoteEngineConfig(): { url: string; token: string } | null {
   const url = env.ENGINE_URL;
   const token = env.ENGINE_TOKEN;
-  return url && token ? { url: url.replace(/\/$/, ''), token } : null;
+  if (!url || !token) return null;
+  // Accept a bare host ("variant-engine.fly.dev") as well as a full URL.
+  const withScheme = /^https?:\/\//.test(url) ? url : `https://${url}`;
+  return { url: withScheme.replace(/\/$/, ''), token };
 }
 
 /** Analyzes one position on the engine service. Retries briefly: the machine may be waking up. */
@@ -33,7 +36,7 @@ export async function analyzeRemote(
       res = await fetch(`${config.url}/analyze`, {
         method: 'POST',
         headers: { 'content-type': 'application/json', authorization: `Bearer ${config.token}` },
-        body: JSON.stringify({ fen, ...opts }),
+        body: JSON.stringify({ fen, depth: opts.depth, multiPv: opts.multiPv }),
       });
     } catch (err) {
       lastError = err;

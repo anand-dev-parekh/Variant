@@ -1,0 +1,35 @@
+# fly.toml app configuration file generated for variant-engine on 2026-10-21T20:34:31-05:00
+#
+# See https://fly.io/docs/reference/configuration/ for information about how to use this file.
+#
+
+app = 'variant-engine'
+primary_region = 'iad'
+
+[build]
+  dockerfile = 'Dockerfile'
+
+[env]
+  HASH_MB = '64'
+  POOL_SIZE = '2'
+
+[http_service]
+  internal_port = 8080
+  force_https = true
+  auto_stop_machines = 'stop'
+  auto_start_machines = true
+  min_machines_running = 0
+
+  [[http_service.checks]]
+    interval = '30s'
+    timeout = '5s'
+    grace_period = '10s'
+    method = 'GET'
+    path = '/health'
+
+# Shared cores burst to full speed and are throttled only under long sustained load; analyzing one
+# game at a time mostly fits in the burst. performance-* (dedicated) is faster but new orgs must ask
+# billing@fly.io to enable it.
+[[vm]]
+  size = 'shared-cpu-2x'
+  memory = '1gb'
