@@ -6,8 +6,8 @@ import { MAX_NODES } from './games';
 import { internalMutation, internalQuery, type MutationCtx, type QueryCtx } from './_generated/server';
 import { vEngineLine } from './schema';
 
-/** Engine alternatives shown at each critical moment, and how many plies each one runs. */
-const BRANCH_ALTERNATIVES = 2;
+/** Engine alternatives shown at each critical moment (the move that should have been played), and how many plies each runs. */
+const BRANCH_ALTERNATIVES = 1;
 const BRANCH_PLIES = 5;
 
 async function analysisFor(ctx: QueryCtx, key: string) {

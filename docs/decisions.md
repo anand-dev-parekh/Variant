@@ -3,6 +3,27 @@
 Why things are the way they are. Newest first. Add an entry when you make a choice someone might
 later want to undo.
 
+## Branch only at mistakes and blunders, one line each
+
+The first version branched at every "critical" move with the engine's top two alternatives,
+where critical included any only-move position. In real games most of those were obvious
+recaptures (17 of 29 in three games), so the tree branched into losing alternatives nobody would
+consider. Now only mistakes and blunders branch, with the single move that should have been
+played: the branch reads as "what you played vs what you should have played".
+
+## Tree drawn as a metro map with cards at turning points
+
+Compared four node styles (boxes per move, soft chips, move pairs, metro line; with or without
+cards). The metro line is the calmest for long games; cards with a mini board make the turning
+points, which is where questions get asked, stand out without clicking. Colours stay, explained
+by a legend in the panel.
+
+## Board plus tabbed panel instead of three panes
+
+Board, tree and engine lines side by side was too busy, and the move list duplicated the tree.
+The panel's tabs (Position, Tree, Moves) keep each view full-size; the tree can go full screen.
+The Position tab is where node chat (M4) will live, so the tree becomes the map of conversations.
+
 ## Fold state lives in the browser, not in `nodes`
 
 The design doc lists a `collapsed` field on nodes. We keep fold state in React instead: it's

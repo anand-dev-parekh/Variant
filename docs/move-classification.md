@@ -47,12 +47,14 @@ Win % alone undersells mates, so Lichess's mate rules can make the verdict worse
 
 - **Only move:** the best line is ≥ 20 win-% points better than the second best. The position
   demanded one specific move, whether or not it was found.
-- **Critical:** the move lost ≥ 20 points, *or* it was an only-move position, *or* it was a
-  blunder (blunders from the mate rules can have a small win-% loss).
+- **Critical (a turning point):** the move was a mistake or a blunder. An only move that was
+  found is *not* critical on its own: in real games almost all of them are obvious recaptures,
+  and branching losing alternatives off a recapture is noise. `onlyMove` is still stored for the
+  detectors (M6), which can call out a genuinely hard only move.
 
-Critical moves are where the tree branches: the engine's two best alternatives to the played
-move, five plies each (see [analysis pipeline](analysis-pipeline.md)). They show a purple dot in
-the move list and tree.
+Critical moves are where the tree branches: one engine line, the move that should have been
+played, five plies long (see [analysis pipeline](analysis-pipeline.md)). In the tree they're the
+cards with a mini board.
 
 ## Tuning
 

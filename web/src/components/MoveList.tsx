@@ -29,7 +29,6 @@ export function MoveList({ tree, selectedId, onSelect }: Props) {
     >
       {node.moveSan}
       {node.classification && GLYPHS[node.classification]}
-      {node.critical && <span className="critical-dot" title="Critical moment" />}
     </button>
   );
 

@@ -1,5 +1,6 @@
-import { memo, useCallback, useEffect, useMemo, useState } from 'react';
+import { memo, useCallback, useEffect, useMemo } from 'react';
 import {
+  BaseEdge,
   Controls,
   Handle,
   Panel,
@@ -9,50 +10,68 @@ import {
   useReactFlow,
   useStore,
   type Edge,
+  type EdgeProps,
   type Node,
   type NodeMouseHandler,
   type NodeProps,
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
-import type { Id } from '../../convex/_generated/dataModel';
+import { formatScore, terminalScore, type Score } from '@variant/chess-core';
+import type { Doc, Id } from '../../convex/_generated/dataModel';
 import type { GameTree, TreeNode } from '../lib/tree';
-import { buildTreeView, moveLabel, type ViewItem } from '../lib/treeLayout';
+import { GEOMETRY, buildTreeView, itemPositions, moveLabel, type ViewItem } from '../lib/treeLayout';
+import { MiniBoard } from './MiniBoard';
 import { GLYPHS } from './MoveList';
 
-const COLUMN_WIDTH = 168;
-const ROW_HEIGHT = 46;
-const BOX_WIDTH = 144;
-const BOX_HEIGHT = 32;
+/** Every item's dot sits here (relative to the item's top-left); edges run dot to dot. */
+const DOT = { x: 10, y: 18 };
 
-type BoxData = { item: ViewItem; selected: boolean; onPath: boolean };
-type BoxNode = Node<BoxData, 'move' | 'run'>;
+export type Revealed = ReadonlySet<Id<'nodes'>>;
 
 type Props = {
   tree: GameTree;
+  analyses: Record<string, Doc<'analyses'>>;
   selectedId: Id<'nodes'>;
   onSelect: (id: Id<'nodes'>) => void;
+  /** Fold state lives with the page, so the tree keeps it when it moves between tab and full screen. */
+  revealed: Revealed;
+  setRevealed: (update: (prev: Revealed) => Revealed) => void;
+  flipped?: boolean;
+  onHover?: (id: Id<'nodes'> | null) => void;
 };
 
-/** The game as a pannable tree. Long stretches and engine lines fold into boxes that expand on click. */
+type ItemData = {
+  item: ViewItem;
+  selected: boolean;
+  onPath: boolean;
+  evalText?: string;
+  bestText?: string;
+  flipped: boolean;
+};
+type ItemNode = Node<ItemData, ViewItem['kind']>;
+
+/**
+ * The game as a metro map: moves are stops on a line, inaccuracies to blunders are colored stops,
+ * and mistakes and blunders open into cards with the position. Engine lines and quiet stretches
+ * fold into one stop that expands on click.
+ */
 export function GameTreeView(props: Props) {
   return (
-    <section className="tree-panel" aria-label="Variation tree">
-      <ReactFlowProvider>
-        <TreeCanvas {...props} />
-      </ReactFlowProvider>
-    </section>
+    <ReactFlowProvider>
+      <TreeCanvas {...props} />
+    </ReactFlowProvider>
   );
 }
 
-function TreeCanvas({ tree, selectedId, onSelect }: Props) {
-  const [revealed, setRevealed] = useState<ReadonlySet<Id<'nodes'>>>(() => new Set());
+function TreeCanvas({ tree, analyses, selectedId, onSelect, revealed, setRevealed, flipped = false, onHover }: Props) {
   const view = useMemo(() => buildTreeView(tree, revealed), [tree, revealed]);
+  const positions = useMemo(() => itemPositions(view), [view]);
 
-  // Selecting a folded move (from the move list or the keyboard) unfolds its box.
+  // Selecting a folded move (from the move list or the keyboard) unfolds its stretch.
   const selectedItem = view.itemOf.get(selectedId);
   useEffect(() => {
     if (selectedItem?.kind === 'run') reveal(setRevealed, selectedItem.nodes);
-  }, [selectedItem]);
+  }, [selectedItem, setRevealed]);
 
   const onPath = useMemo(() => {
     const ids = new Set<string>();
@@ -65,54 +84,61 @@ function TreeCanvas({ tree, selectedId, onSelect }: Props) {
 
   const nodes = useMemo(
     () =>
-      view.items.map(
-        (item): BoxNode => ({
+      view.items.map((item): ItemNode => {
+        const node = item.nodes[0]!;
+        const parent = tree.parentOf(node);
+        return {
           id: item.id,
           type: item.kind,
-          position: { x: item.column * COLUMN_WIDTH, y: item.row * ROW_HEIGHT },
-          data: { item, selected: item.kind === 'move' && item.nodes[0]!._id === selectedId, onPath: onPath.has(item.id) },
-          width: BOX_WIDTH,
-          height: BOX_HEIGHT,
-        }),
-      ),
-    [view, selectedId, onPath],
+          position: positions.get(item.id)!,
+          data: {
+            item,
+            selected: item.kind !== 'run' && node._id === selectedId,
+            onPath: onPath.has(item.id),
+            evalText: item.kind === 'card' ? evalOf(analyses, node) : undefined,
+            bestText: item.kind === 'card' && parent ? bestMoveOf(analyses, parent) : undefined,
+            flipped,
+          },
+        };
+      }),
+    [view, positions, selectedId, onPath, analyses, tree, flipped],
   );
 
-  const edges = useMemo(
-    () =>
-      view.items.flatMap((item): Edge[] =>
-        item.parentItemId
-          ? [
-              {
-                id: `${item.parentItemId}->${item.id}`,
-                source: item.parentItemId,
-                target: item.id,
-                type: 'smoothstep',
-                className: [`edge-${item.nodes[0]!.source}`, onPath.has(item.id) ? 'on-path' : ''].join(' '),
-              },
-            ]
-          : [],
-      ),
-    [view, onPath],
-  );
+  const edges = useMemo(() => {
+    const byId = new Map(view.items.map((i) => [i.id, i]));
+    return view.items.flatMap((item): Edge[] => {
+      if (!item.parentItemId) return [];
+      const parent = byId.get(item.parentItemId)!;
+      const classes = [
+        `edge-${item.nodes[0]!.source}`,
+        item.kind === 'run' || parent.kind === 'run' ? 'edge-run' : '',
+        onPath.has(item.id) ? 'on-path' : '',
+      ];
+      return [{ id: `${parent.id}->${item.id}`, source: parent.id, target: item.id, type: 'elbow', className: classes.join(' ') }];
+    });
+  }, [view, onPath]);
 
-  const onNodeClick: NodeMouseHandler<BoxNode> = useCallback(
-    (_event, box) => {
-      if (box.data.item.kind === 'run') reveal(setRevealed, box.data.item.nodes);
-      else onSelect(box.data.item.nodes[0]!._id);
+  const onNodeClick: NodeMouseHandler<ItemNode> = useCallback(
+    (_event, n) => {
+      if (n.data.item.kind === 'run') reveal(setRevealed, n.data.item.nodes);
+      else onSelect(n.data.item.nodes[0]!._id);
     },
-    [onSelect],
+    [onSelect, setRevealed],
   );
 
   const allIds = useMemo(() => [...tree.byId.keys()], [tree]);
+  const target = selectedItem && selectedItem.kind !== 'run' ? positions.get(selectedItem.id) : undefined;
 
   return (
     <ReactFlow
       nodes={nodes}
       edges={edges}
       nodeTypes={NODE_TYPES}
+      edgeTypes={EDGE_TYPES}
       onNodeClick={onNodeClick}
-      defaultViewport={{ x: 24, y: 20, zoom: 1 }}
+      onNodeMouseEnter={onHover ? (_e, n) => n.data.item.kind !== 'run' && onHover(n.data.item.nodes[0]!._id) : undefined}
+      onNodeMouseLeave={onHover ? () => onHover(null) : undefined}
+      defaultViewport={{ x: 28, y: 20, zoom: 1 }}
       minZoom={0.3}
       maxZoom={1.5}
       nodesDraggable={false}
@@ -124,85 +150,200 @@ function TreeCanvas({ tree, selectedId, onSelect }: Props) {
       zoomOnScroll={false}
       colorMode="system"
     >
-      <FollowSelection item={selectedItem} />
+      <FollowSelection target={target} card={selectedItem?.kind === 'card'} />
       <Controls showInteractive={false} position="bottom-right" />
       <Panel position="top-right" className="tree-actions">
-        <button onClick={() => setRevealed(new Set(allIds))}>Expand all</button>
-        <button onClick={() => setRevealed(new Set())}>Collapse</button>
+        <button onClick={() => setRevealed(() => new Set(allIds))}>Expand all</button>
+        <button onClick={() => setRevealed(() => new Set())}>Collapse</button>
+      </Panel>
+      <Panel position="bottom-left" className="tree-legend" aria-label="Legend">
+        <span>
+          <i className="legend-dot inaccuracy" />
+          Inaccuracy ?!
+        </span>
+        <span>
+          <i className="legend-dot mistake" />
+          Mistake ?
+        </span>
+        <span>
+          <i className="legend-dot blunder" />
+          Blunder ??
+        </span>
+        <span>
+          <i className="legend-dash" />
+          Engine line
+        </span>
+        <span>
+          <i className="legend-dot user" />
+          Your what-if
+        </span>
       </Panel>
     </ReactFlow>
   );
 }
 
-function reveal(setRevealed: (update: (prev: ReadonlySet<Id<'nodes'>>) => ReadonlySet<Id<'nodes'>>) => void, nodes: TreeNode[]) {
+function reveal(setRevealed: Props['setRevealed'], nodes: TreeNode[]) {
   setRevealed((prev) => new Set([...prev, ...nodes.map((n) => n._id)]));
 }
 
+/** "+1.25" for the position after this node's move; "#" results for finished games. */
+function evalOf(analyses: Props['analyses'], node: TreeNode): string | undefined {
+  const a = analyses[node.positionKey];
+  if (!a) return undefined;
+  const score: Score | undefined = a.terminal ? terminalScore(a.fen, a.terminal) : a.lines[0]?.score;
+  if (a.terminal === 'checkmate') return 'mate';
+  return score ? formatScore(score) : undefined;
+}
+
+/** The engine's choice in the position before the move, e.g. "15. fxe3". */
+function bestMoveOf(analyses: Props['analyses'], parent: TreeNode): string | undefined {
+  const san = analyses[parent.positionKey]?.lines[0]?.san[0];
+  if (!san) return undefined;
+  const [, turn, , , , fullmove] = parent.fen.split(' ');
+  return turn === 'w' ? `${fullmove}. ${san}` : `${fullmove}… ${san}`;
+}
+
 /**
- * Pans to the selected box when it's out of view: after stepping with the arrow keys, or when
+ * Pans to the selected item when it's out of view: after stepping with the arrow keys, or when
  * folding or resizing moves it. Only checks when one of those changes, so manual panning sticks.
  */
-function FollowSelection({ item }: { item: ViewItem | undefined }) {
+function FollowSelection({ target, card }: { target: { x: number; y: number } | undefined; card: boolean }) {
   const flow = useReactFlow();
   const width = useStore((s) => s.width);
   const height = useStore((s) => s.height);
-  const target = item && item.kind === 'move' ? { column: item.column, row: item.row } : null;
 
   useEffect(() => {
     if (!target || !width || !height) return;
-    const left = target.column * COLUMN_WIDTH;
-    const top = target.row * ROW_HEIGHT;
+    const w = card ? 260 : 160;
+    const h = card ? GEOMETRY.cardHeight : GEOMETRY.rowHeight;
     const { x, y, zoom } = flow.getViewport();
     const margin = 12;
     const visible =
-      left * zoom + x >= margin &&
-      (left + BOX_WIDTH) * zoom + x <= width - margin &&
-      top * zoom + y >= margin &&
-      (top + BOX_HEIGHT) * zoom + y <= height - margin;
-    if (!visible) flow.setCenter(left + BOX_WIDTH / 2, top + BOX_HEIGHT / 2, { zoom, duration: 200 });
-  }, [target?.column, target?.row, width, height, flow]);
+      target.x * zoom + x >= margin &&
+      (target.x + w) * zoom + x <= width - margin &&
+      target.y * zoom + y >= margin &&
+      (target.y + h) * zoom + y <= height - margin;
+    if (!visible) flow.setCenter(target.x + w / 2, target.y + h / 2, { zoom, duration: 200 });
+    // Re-check only when the item moves or the panel resizes.
+  }, [target?.x, target?.y, card, width, height, flow]);
 
   return null;
 }
 
-const MoveBox = memo(function MoveBox({ data }: NodeProps<BoxNode>) {
-  const node = data.item.nodes[0]!;
-  const classes = ['tree-box', `source-${node.source}`, node.classification ?? '', data.selected ? 'selected' : '', data.onPath ? 'on-path' : ''];
-  const glyph = node.classification ? GLYPHS[node.classification] : undefined;
+/** Both handles sit on the dot, so lines join dot to dot. */
+function Handles() {
+  const style = { left: DOT.x, top: DOT.y };
   return (
-    <div className={classes.join(' ')} title={describe(node)}>
-      <Handle type="target" position={Position.Top} isConnectable={false} />
-      <span className="tree-label">
-        {moveLabel(node)}
-        {glyph}
+    <>
+      <Handle type="target" position={Position.Top} style={style} isConnectable={false} />
+      <Handle type="source" position={Position.Bottom} style={style} isConnectable={false} />
+    </>
+  );
+}
+
+function dotClass(node: TreeNode, data: ItemData, extra = '') {
+  return ['metro-dot', node.classification ?? '', `source-${node.source}`, data.selected ? 'selected' : '', extra].join(' ');
+}
+
+function MoveLabel({ node }: { node: TreeNode }) {
+  const label = moveLabel(node);
+  const space = label.indexOf(' ');
+  return (
+    <>
+      {space > 0 && <span className="metro-num">{label.slice(0, space + 1)}</span>}
+      <span className="metro-san">{space > 0 ? label.slice(space + 1) : label}</span>
+      {node.classification && GLYPHS[node.classification] && (
+        <span className={`metro-glyph ${node.classification}`}>{GLYPHS[node.classification]}</span>
+      )}
+    </>
+  );
+}
+
+const MoveItem = memo(function MoveItem({ data }: NodeProps<ItemNode>) {
+  const node = data.item.nodes[0]!;
+  return (
+    <div className={`metro-item ${data.selected ? 'selected' : ''} source-${node.source}`} title={describe(node)}>
+      <Handles />
+      <span className={dotClass(node, data)} />
+      <span className="metro-label">
+        <MoveLabel node={node} />
       </span>
-      {node.critical && <span className="critical-dot" />}
-      <Handle type="source" position={Position.Bottom} isConnectable={false} />
     </div>
   );
 });
 
-const RunBox = memo(function RunBox({ data }: NodeProps<BoxNode>) {
+const CardItem = memo(function CardItem({ data }: NodeProps<ItemNode>) {
+  const node = data.item.nodes[0]!;
+  const verdict = node.classification === 'blunder' ? 'Blunder' : 'Mistake';
+  return (
+    <div className={`metro-item card ${data.selected ? 'selected' : ''}`} title={describe(node)}>
+      <Handles />
+      <span className={dotClass(node, data)} />
+      <div className={`metro-card ${node.classification} ${data.selected ? 'selected' : ''}`}>
+        <MiniBoard fen={node.fen} size={84} flipped={data.flipped} />
+        <div className="metro-card-text">
+          <span className="metro-label">
+            <MoveLabel node={node} />
+          </span>
+          <span className={`metro-verdict ${node.classification}`}>
+            {verdict}
+            {node.winPercentLoss !== undefined && ` · −${node.winPercentLoss.toFixed(0)}%`}
+          </span>
+          {data.evalText && <span className="metro-meta">eval {data.evalText}</span>}
+          {data.bestText && <span className="metro-meta">best {data.bestText}</span>}
+        </div>
+      </div>
+    </div>
+  );
+});
+
+const RunItem = memo(function RunItem({ data }: NodeProps<ItemNode>) {
   const { nodes } = data.item;
   const first = nodes[0]!;
-  const classes = ['tree-box', 'run', `source-${first.source}`, data.onPath ? 'on-path' : ''];
+  const last = nodes.at(-1)!;
+  const mainline = first.source === 'game';
   return (
-    <div className={classes.join(' ')} title={`${runText(nodes)}\n${nodes.length} moves · click to expand`}>
-      <Handle type="target" position={Position.Top} isConnectable={false} />
-      <span className="tree-label">{moveLabel(first)} …</span>
-      <span className="run-count">+{nodes.length}</span>
-      <Handle type="source" position={Position.Bottom} isConnectable={false} />
+    <div className={`metro-item run source-${first.source}`} title={`${runText(nodes)}\nClick to expand`}>
+      <Handles />
+      <span className={dotClass(first, data, 'run')} />
+      <span className="metro-label">
+        <span className="metro-num">{moveLabel(first)}</span>
+        {mainline ? (
+          <span className="metro-num">
+            {' '}
+            … {moveLabel(last)} · {nodes.length} moves
+          </span>
+        ) : (
+          <span className="metro-num"> … +{nodes.length}</span>
+        )}
+      </span>
     </div>
   );
 });
 
-const NODE_TYPES = { move: MoveBox, run: RunBox };
+const NODE_TYPES = { move: MoveItem, card: CardItem, run: RunItem };
+
+/** Straight down the line, or down to the gap above the target row, across, and down into it. */
+function ElbowEdge({ id, sourceX, sourceY, targetX, targetY, style }: EdgeProps) {
+  let path: string;
+  if (Math.abs(sourceX - targetX) < 1) {
+    path = `M${sourceX} ${sourceY}V${targetY}`;
+  } else {
+    const turn = targetY - DOT.y - GEOMETRY.gap / 2;
+    const r = 8;
+    const dir = targetX > sourceX ? 1 : -1;
+    path =
+      `M${sourceX} ${sourceY}V${turn - r}Q${sourceX} ${turn} ${sourceX + dir * r} ${turn}` +
+      `H${targetX - dir * r}Q${targetX} ${turn} ${targetX} ${turn + r}V${targetY}`;
+  }
+  return <BaseEdge id={id} path={path} style={style} />;
+}
+
+const EDGE_TYPES = { elbow: ElbowEdge };
 
 /** "13. Qxd5 Bxh4 14. a4 …" — the folded moves, numbered, for the tooltip. */
 function runText(nodes: TreeNode[]): string {
-  return nodes
-    .map((n, i) => (i === 0 || n.fen.split(' ')[1] === 'b' ? moveLabel(n) : n.moveSan))
-    .join(' ');
+  return nodes.map((n, i) => (i === 0 || n.fen.split(' ')[1] === 'b' ? moveLabel(n) : n.moveSan)).join(' ');
 }
 
 function describe(node: TreeNode): string {
@@ -210,6 +351,5 @@ function describe(node: TreeNode): string {
   if (node.classification) parts.push(node.classification);
   if (node.winPercentLoss !== undefined && node.winPercentLoss >= 1) parts.push(`lost ${node.winPercentLoss.toFixed(0)}% win chance`);
   if (node.onlyMove) parts.push('only move');
-  if (node.critical) parts.push('critical moment');
   return parts.join(' · ');
 }

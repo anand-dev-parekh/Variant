@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { OPERA_GAME_PGN, parseGame } from '@variant/chess-core';
 import type { Id } from '../../convex/_generated/dataModel';
 import { GameTree, type TreeNode } from './tree';
-import { buildTreeView, moveLabel } from './treeLayout';
+import { buildTreeView, itemPositions, moveLabel } from './treeLayout';
 
 const id = (s: string) => s as Id<'nodes'>;
 let clock = 0;
@@ -96,6 +96,16 @@ describe('buildTreeView', () => {
     const view = buildTreeView(tree, new Set());
     expect(view.itemOf.get(id('m4'))?.id).toBe('run:m1');
     expect(view.itemOf.size).toBe(10);
+  });
+});
+
+describe('itemPositions', () => {
+  it('draws mistakes and blunders as cards and makes their rows taller', () => {
+    const tree = new GameTree(mainline(4, { 2: { classification: 'blunder', critical: true } }));
+    const view = buildTreeView(tree, new Set());
+    expect(view.items.map((i) => i.kind)).toEqual(['move', 'move', 'card', 'move']);
+    const pos = itemPositions(view, { columnWidth: 100, rowHeight: 30, cardHeight: 90, gap: 10 });
+    expect([...pos.values()].map((p) => p.y)).toEqual([0, 40, 80, 180]);
   });
 });
 

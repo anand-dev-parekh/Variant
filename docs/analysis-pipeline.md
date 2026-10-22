@@ -63,9 +63,9 @@ move (`classifyAndBranch`):
    fixed score of a finished position).
 2. `judgeMove` returns `classification`, `winPercentLoss`, `onlyMove`, `critical`, which are
    patched onto the node. See [move classification](move-classification.md).
-3. At a critical move, it takes the engine's best lines from the position *before* the move,
-   skips the one that is the played move, keeps `BRANCH_ALTERNATIVES = 2`, plays each for
-   `BRANCH_PLIES = 5` plies, and inserts them as `engine` nodes under the parent position.
+3. At a critical move (a mistake or blunder), it takes the engine's best line from the position
+   *before* the move that isn't the played move (`BRANCH_ALTERNATIVES = 1`), plays it for
+   `BRANCH_PLIES = 5` plies, and inserts it as `engine` nodes under the parent position.
 
 Then sets `status: 'ready'`.
 

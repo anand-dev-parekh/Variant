@@ -4,7 +4,8 @@ import type { GameTree, TreeNode } from './tree';
 /** One box in the tree view: a single position, or a folded run of consecutive moves. */
 export type ViewItem = {
   id: string;
-  kind: 'move' | 'run';
+  /** move: one position · card: a mistake or blunder, drawn large with a board · run: folded moves */
+  kind: 'move' | 'card' | 'run';
   nodes: TreeNode[];
   column: number;
   row: number;
@@ -21,14 +22,17 @@ export type TreeView = {
 /** Shorter stretches of quiet moves aren't worth folding: the run box would be as big as the moves. */
 export const MIN_RUN = 3;
 
-const ALWAYS_SHOWN = new Set(['mistake', 'blunder']);
+/** Drawn as cards. */
+const TURNING_POINTS = new Set(['mistake', 'blunder']);
+/** Never folded away on the main line. */
+const MARKED = new Set(['inaccuracy', 'mistake', 'blunder']);
 
 /**
  * Lays the game out as a top-down tree: the main line in column 0, each branch in the nearest
  * column to the right that is free for the rows it spans.
  *
  * Folding keeps long games readable. On the main line, only landmarks get their own box: the
- * start, the final position, critical moments, mistakes and blunders, and positions that branch.
+ * start, the final position, inaccuracies, mistakes and blunders, and positions that branch.
  * Engine lines fold completely. The user's own what-ifs never fold. Anything in `revealed` is
  * shown regardless.
  */
@@ -43,7 +47,7 @@ export function buildTreeView(tree: GameTree, revealed: ReadonlySet<Id<'nodes'>>
     return (
       node === tree.root ||
       !!node.critical ||
-      ALWAYS_SHOWN.has(node.classification ?? '') ||
+      MARKED.has(node.classification ?? '') ||
       tree.childrenOf(node).length > 1 ||
       tree.next(node) === undefined
     );
@@ -65,7 +69,7 @@ export function buildTreeView(tree: GameTree, revealed: ReadonlySet<Id<'nodes'>>
       const first = nodes[0]!;
       const item: ViewItem = {
         id: nodes.length > 1 ? `run:${first._id}` : first._id,
-        kind: nodes.length > 1 ? 'run' : 'move',
+        kind: nodes.length > 1 ? 'run' : TURNING_POINTS.has(first.classification ?? '') ? 'card' : 'move',
         nodes,
         column,
         row: row + placed.length,
@@ -89,6 +93,26 @@ export function buildTreeView(tree: GameTree, revealed: ReadonlySet<Id<'nodes'>>
 
   place(tree.root, 0, 0, undefined);
   return { items, itemOf };
+}
+
+/** Pixel geometry of the view. Rows grow to fit the tallest item in them (cards are taller). */
+export type Geometry = { columnWidth: number; rowHeight: number; cardHeight: number; gap: number };
+export const GEOMETRY: Geometry = { columnWidth: 280, rowHeight: 36, cardHeight: 104, gap: 10 };
+
+/** Top-left corner of every item, by id. */
+export function itemPositions(view: TreeView, g: Geometry = GEOMETRY): Map<string, { x: number; y: number }> {
+  const heights: number[] = [];
+  for (const item of view.items) {
+    const h = item.kind === 'card' ? g.cardHeight : g.rowHeight;
+    heights[item.row] = Math.max(heights[item.row] ?? 0, h);
+  }
+  const tops: number[] = [];
+  let y = 0;
+  for (let row = 0; row < heights.length; row++) {
+    tops[row] = y;
+    y += (heights[row] ?? g.rowHeight) + g.gap;
+  }
+  return new Map(view.items.map((item) => [item.id, { x: item.column * g.columnWidth, y: tops[item.row]! }]));
 }
 
 /** Splits a line into boxes: landmarks alone, stretches of other moves folded when long enough. */

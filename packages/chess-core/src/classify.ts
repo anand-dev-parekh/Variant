@@ -11,9 +11,7 @@ export const THRESHOLDS = {
   inaccuracy: 10,
   mistake: 20,
   blunder: 30,
-  /** A ply is critical when the played move loses at least this much… */
-  critical: 20,
-  /** …or when the best move is this much better than the second best ("only move"). */
+  /** The best move is this much better than the second best ("only move"). */
   onlyMove: 20,
 } as const;
 
@@ -29,6 +27,10 @@ export type MoveVerdict = {
   winPercentLoss: number;
   /** The engine's best move was the only one that kept the evaluation. */
   onlyMove: boolean;
+  /**
+   * The move was a mistake or blunder: a turning point worth branching on. Only-move positions
+   * don't count on their own; most are obvious recaptures.
+   */
   critical: boolean;
 };
 
@@ -65,7 +67,7 @@ export function judgeMove(args: {
     classification,
     winPercentLoss,
     onlyMove,
-    critical: winPercentLoss >= THRESHOLDS.critical || onlyMove || classification === 'blunder',
+    critical: classification === 'mistake' || classification === 'blunder',
   };
 }
 

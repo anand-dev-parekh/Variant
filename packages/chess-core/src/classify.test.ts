@@ -29,9 +29,17 @@ describe('judgeMove', () => {
     expect(v.classification).toBe('good');
   });
 
-  it('flags only-move positions as critical even when the move was found', () => {
+  it('notes only-move positions but does not branch on a found only move', () => {
     const v = judgeMove({ mover: 'w', playedUci: 'e2e4', before: [line(0, 'e2e4'), line(-400, 'd2d4')], after: { cp: 0 } });
-    expect(v).toMatchObject({ classification: 'best', onlyMove: true, critical: true });
+    expect(v).toMatchObject({ classification: 'best', onlyMove: true, critical: false });
+  });
+
+  it('makes mistakes and blunders critical, inaccuracies not', () => {
+    const before = [line(0, 'e7e5'), line(-10, 'c7c5')];
+    const critical = (cp: number) => judgeMove({ mover: 'b', playedUci: 'a7a6', before, after: { cp } }).critical;
+    expect(critical(500)).toBe(true);
+    expect(critical(300)).toBe(true);
+    expect(critical(150)).toBe(false);
   });
 
   it('treats walking into a forced mate as a blunder unless already lost', () => {
