@@ -1,6 +1,7 @@
 import { v } from 'convex/values';
 import { judgeMove, playUciLine, positionKey, terminalScore, type Score } from '@variant/chess-core';
 import type { Doc, Id } from './_generated/dataModel';
+import { MAX_NODES } from './games';
 import { internalMutation, internalQuery, type MutationCtx, type QueryCtx } from './_generated/server';
 import { vEngineLine } from './schema';
 
@@ -11,16 +12,16 @@ const BRANCH_PLIES = 5;
 async function analysisFor(ctx: QueryCtx, key: string) {
   return ctx.db
     .query('analyses')
-    .withIndex('by_position', (q) => q.eq('positionKey', key))
+    .withIndex('by_positionKey', (q) => q.eq('positionKey', key))
     .first();
 }
 
+/** Main-line nodes in ply order. */
 function mainlineOf(ctx: QueryCtx, gameId: Id<'games'>) {
   return ctx.db
     .query('nodes')
-    .withIndex('by_game', (q) => q.eq('gameId', gameId))
-    .filter((q) => q.eq(q.field('source'), 'game'))
-    .collect();
+    .withIndex('by_gameId_and_source_and_ply', (q) => q.eq('gameId', gameId).eq('source', 'game'))
+    .take(MAX_NODES);
 }
 
 /**
@@ -30,7 +31,7 @@ function mainlineOf(ctx: QueryCtx, gameId: Id<'games'>) {
 export const pendingPositions = internalQuery({
   args: { gameId: v.id('games') },
   handler: async (ctx, { gameId }) => {
-    const game = await ctx.db.get(gameId);
+    const game = await ctx.db.get('games', gameId);
     if (!game) return null;
     const pending = new Map<string, string>();
     for (const node of await mainlineOf(ctx, gameId)) {
@@ -58,7 +59,7 @@ export const saveAnalysis = internalMutation({
   handler: async (ctx, analysis) => {
     const existing = await analysisFor(ctx, analysis.positionKey);
     if (!existing) await ctx.db.insert('analyses', analysis);
-    else if (existing.depth < analysis.depth) await ctx.db.replace(existing._id, analysis);
+    else if (existing.depth < analysis.depth) await ctx.db.replace('analyses', existing._id, analysis);
   },
 });
 
@@ -77,10 +78,10 @@ function scoreOf(analysis: Doc<'analyses'>): Score {
 export const finalize = internalMutation({
   args: { gameId: v.id('games') },
   handler: async (ctx, { gameId }) => {
-    const game = await ctx.db.get(gameId);
+    const game = await ctx.db.get('games', gameId);
     if (!game || game.status !== 'analyzing') return;
     await classifyAndBranch(ctx, gameId);
-    await ctx.db.patch(gameId, { status: 'ready' });
+    await ctx.db.patch('games', gameId, { status: 'ready' });
   },
 });
 
@@ -91,20 +92,19 @@ export const finalize = internalMutation({
 export const reclassify = internalMutation({
   args: { gameId: v.id('games') },
   handler: async (ctx, { gameId }) => {
-    const game = await ctx.db.get(gameId);
+    const game = await ctx.db.get('games', gameId);
     if (!game || game.status !== 'ready') throw new Error('Only finished games can be reclassified');
     const engineNodes = await ctx.db
       .query('nodes')
-      .withIndex('by_game', (q) => q.eq('gameId', gameId))
-      .filter((q) => q.eq(q.field('source'), 'engine'))
-      .collect();
-    for (const node of engineNodes) await ctx.db.delete(node._id);
+      .withIndex('by_gameId_and_source_and_ply', (q) => q.eq('gameId', gameId).eq('source', 'engine'))
+      .take(MAX_NODES);
+    for (const node of engineNodes) await ctx.db.delete('nodes', node._id);
     await classifyAndBranch(ctx, gameId);
   },
 });
 
 async function classifyAndBranch(ctx: MutationCtx, gameId: Id<'games'>) {
-  const nodes = (await mainlineOf(ctx, gameId)).sort((a, b) => a.ply - b.ply);
+  const nodes = await mainlineOf(ctx, gameId);
   for (let i = 1; i < nodes.length; i++) {
     const parent = nodes[i - 1]!;
     const node = nodes[i]!;
@@ -118,7 +118,7 @@ async function classifyAndBranch(ctx: MutationCtx, gameId: Id<'games'>) {
       before: before.lines,
       after: scoreOf(after),
     });
-    await ctx.db.patch(node._id, verdict);
+    await ctx.db.patch('nodes', node._id, verdict);
 
     if (verdict.critical) {
       const alternatives = before.lines.filter((l) => l.pv[0] !== node.moveUci).slice(0, BRANCH_ALTERNATIVES);
@@ -145,6 +145,6 @@ async function classifyAndBranch(ctx: MutationCtx, gameId: Id<'games'>) {
 export const markFailed = internalMutation({
   args: { gameId: v.id('games'), error: v.string() },
   handler: async (ctx, { gameId, error }) => {
-    await ctx.db.patch(gameId, { status: 'failed', error });
+    await ctx.db.patch('games', gameId, { status: 'failed', error });
   },
 });

@@ -10,6 +10,7 @@ Stockfish and deterministic code decide what is true; the LLM only explains it.
 | `web/src/` | Vite + React app (board, move list, in-browser Stockfish for unanalyzed positions) |
 | `web/convex/` | Convex backend: schema, game import, the engine pass, move classification |
 | `packages/chess-core/` | Shared TypeScript: PGN/UCI parsing, win %, move classification |
+| `engine/` | Native Stockfish HTTP service (Docker) that Convex calls for the engine pass |
 
 ## Develop
 
@@ -32,6 +33,22 @@ Stockfish build from `node_modules/stockfish` and writes (both git-ignored):
 - `web/public/stockfish/`: the browser Web Worker
 - `web/vendor/stockfish/`: a patched copy for Convex Node actions, with the `.wasm` embedded as
   base64. The full npm package (~200 MB) is too big to deploy to Convex.
+
+### Engine service
+
+Convex's cloud runtime is too slow for WASM Stockfish, so the engine pass calls `engine/server.mjs`:
+a dependency-free Node server that runs native Stockfish 19 (`POST /analyze`, Bearer auth). Deploy
+it from `engine/` (Dockerfile; e.g. Railway) with `ENGINE_TOKEN` set, and `POOL_SIZE` set to the
+machine's vCPU count. Then point Convex at it (from `web/`):
+
+```bash
+npx convex env set ENGINE_URL https://your-engine-host
+npx convex env set ENGINE_TOKEN <same token>
+npx convex run engine:benchmark '{"depth": 18}'
+```
+
+Locally: `ENGINE_TOKEN=dev STOCKFISH_PATH=$(which stockfish) node engine/server.mjs` (port 8080).
+Without `ENGINE_URL`, Convex falls back to the WASM build in-process.
 
 ### Analysis pipeline
 

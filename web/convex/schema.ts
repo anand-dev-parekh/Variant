@@ -50,8 +50,9 @@ export default defineSchema({
     onlyMove: v.optional(v.boolean()),
     critical: v.optional(v.boolean()),
   })
-    .index('by_game', ['gameId', 'ply'])
-    .index('by_parent', ['parentId']),
+    .index('by_gameId_and_ply', ['gameId', 'ply'])
+    .index('by_gameId_and_source_and_ply', ['gameId', 'source', 'ply'])
+    .index('by_parentId', ['parentId']),
 
   /** Server engine output, shared by every node with the same position. */
   analyses: defineTable({
@@ -64,5 +65,5 @@ export default defineSchema({
     terminal: v.optional(v.union(v.literal('checkmate'), v.literal('stalemate'), v.literal('insufficient'))),
     /** Best first, White POV. */
     lines: v.array(vEngineLine),
-  }).index('by_position', ['positionKey']),
+  }).index('by_positionKey', ['positionKey']),
 });

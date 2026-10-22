@@ -1,0 +1,13 @@
+{
+  "name": "engine",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Native Stockfish behind a small HTTP API, called by Convex actions",
+  "scripts": {
+    "start": "node server.mjs"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

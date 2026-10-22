@@ -4,6 +4,9 @@ import { internal } from './_generated/api';
 import type { Doc } from './_generated/dataModel';
 import { mutation, query } from './_generated/server';
 
+/** Upper bound on a game's tree: main line plus engine and user branches. */
+export const MAX_NODES = 4000;
+
 /** Engine settings for the analysis pass (design doc: depth ~18, MultiPV 3). */
 export const ANALYSIS_DEPTH = 18;
 export const ANALYSIS_MULTIPV = 3;
@@ -68,19 +71,19 @@ export const list = query({
 export const tree = query({
   args: { gameId: v.id('games') },
   handler: async (ctx, { gameId }) => {
-    const game = await ctx.db.get(gameId);
+    const game = await ctx.db.get('games', gameId);
     if (!game) return null;
 
     const nodes = await ctx.db
       .query('nodes')
-      .withIndex('by_game', (q) => q.eq('gameId', gameId))
-      .collect();
+      .withIndex('by_gameId_and_ply', (q) => q.eq('gameId', gameId))
+      .take(MAX_NODES);
 
     const analyses: Record<string, Doc<'analyses'>> = {};
     for (const key of new Set(nodes.map((n) => n.positionKey))) {
       const analysis = await ctx.db
         .query('analyses')
-        .withIndex('by_position', (q) => q.eq('positionKey', key))
+        .withIndex('by_positionKey', (q) => q.eq('positionKey', key))
         .first();
       if (analysis) analyses[key] = analysis;
     }
