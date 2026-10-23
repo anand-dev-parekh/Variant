@@ -71,6 +71,16 @@ move (`classifyAndBranch`):
 
 Then sets `status: 'ready'`.
 
+## What-ifs (`branches.ts`)
+
+`branches.addMoves` (from the board) and `addMovesInternal` (the chat's `add_branch`) replay UCI
+moves from a node, reuse any child that already has the move, and insert the rest as `user`
+nodes. `analyzeUserMoves` then analyzes each new position and its parent through the shared cache
+(`lib/cachedEngine.ts`, same depth and MultiPV as the game pass) and saves a verdict with
+`judgeMove`, like a game move. User moves are judged but never branched, and they don't count
+toward key moments. `removeWhatIf` deletes a user node, everything after it, and their chat
+threads.
+
 ## Re-running classification
 
 Thresholds are meant to be tuned. To redo step 3 for a finished game without re-running the

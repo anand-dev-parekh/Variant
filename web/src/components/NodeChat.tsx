@@ -3,13 +3,25 @@ import { useMutation, useQuery } from 'convex/react';
 import { ConvexError } from 'convex/values';
 import { useSmoothText, useUIMessages, type UIMessage } from '@convex-dev/agent/react';
 import { api } from '../../convex/_generated/api';
+import type { Id } from '../../convex/_generated/dataModel';
 import type { TreeNode } from '../lib/tree';
 import { moveLabel } from '../lib/treeLayout';
 
 const VERDICT_WORD = { inaccuracy: 'an inaccuracy', mistake: 'a mistake', blunder: 'a blunder' } as const;
 
 /** The chat for one position. Answers are grounded in the server's engine analysis and tools. */
-export function NodeChat({ node, ready, bestLabel }: { node: TreeNode; ready: boolean; bestLabel?: string }) {
+export function NodeChat({
+  node,
+  ready,
+  bestLabel,
+  onSelect,
+}: {
+  node: TreeNode;
+  ready: boolean;
+  bestLabel?: string;
+  /** Jumps to a position, e.g. a line the coach added to the tree. */
+  onSelect: (id: Id<'nodes'>) => void;
+}) {
   const threadId = useQuery(api.chat.threadFor, { nodeId: node._id });
   const send = useMutation(api.chat.send);
   const { results: messages } = useUIMessages(
@@ -59,7 +71,7 @@ export function NodeChat({ node, ready, bestLabel }: { node: TreeNode; ready: bo
       {messages.length > 0 && (
         <ol className="chat-log">
           {messages.map((m) => (
-            <Message key={m.key} message={m} />
+            <Message key={m.key} message={m} onSelect={onSelect} />
           ))}
           {last?.role === 'user' && <li className="chat-msg assistant muted">Thinking…</li>}
         </ol>
@@ -89,7 +101,7 @@ export function NodeChat({ node, ready, bestLabel }: { node: TreeNode; ready: bo
   );
 }
 
-function Message({ message }: { message: UIMessage }) {
+function Message({ message, onSelect }: { message: UIMessage; onSelect: (id: Id<'nodes'>) => void }) {
   if (message.role === 'user') return <li className="chat-msg user">{message.text}</li>;
   const checks = message.parts.filter((p) => p.type.startsWith('tool-'));
   // Only the text after the last tool call is the answer; text between calls is the model's working.
@@ -103,7 +115,7 @@ function Message({ message }: { message: UIMessage }) {
       {checks.length > 0 && (
         <div className="chat-checks">
           {checks.map((p, i) => (
-            <ToolChip key={i} part={p as ToolPart} />
+            <ToolChip key={i} part={p as ToolPart} onSelect={onSelect} />
           ))}
         </div>
       )}
@@ -123,7 +135,7 @@ function AssistantText({ text, streaming }: { text: string; streaming: boolean }
 type ToolPart = { type: string; state: string; output?: Record<string, unknown> };
 
 /** Where a claim came from: each engine check or move check the model ran. */
-function ToolChip({ part }: { part: ToolPart }) {
+function ToolChip({ part, onSelect }: { part: ToolPart; onSelect: (id: Id<'nodes'>) => void }) {
   const out = part.output;
   let label: string;
   if (part.state !== 'output-available' || !out) label = part.state === 'output-error' ? 'Check failed' : 'Checking…';
@@ -131,6 +143,13 @@ function ToolChip({ part }: { part: ToolPart }) {
   else if (part.type === 'tool-evaluate') {
     const lines = out.lines as { line: string }[] | undefined;
     label = `Engine ${out.score}${lines?.[0] ? ` · ${lines[0].line}` : ''}`;
+  } else if (part.type === 'tool-add_branch' && typeof out.nodeId === 'string') {
+    const nodeId = out.nodeId as Id<'nodes'>;
+    return (
+      <button className="chat-check chat-check-action" onClick={() => onSelect(nodeId)} title="Show this line on the board">
+        Added {String(out.added)} · Show on board
+      </button>
+    );
   } else if (part.type === 'tool-play_moves') {
     label = typeof out.illegal === 'string' ? `Illegal: ${out.illegal}` : `Played ${out.line}`;
   } else label = part.type.slice(5);

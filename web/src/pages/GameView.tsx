@@ -1,7 +1,15 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { useQuery } from 'convex/react';
+import { useMutation, useQuery } from 'convex/react';
 import { Chessboard } from 'react-chessboard';
-import { formatSanLine, formatScore, terminalScore, terminalState, type Score } from '@variant/chess-core';
+import {
+  formatSanLine,
+  formatScore,
+  moveFromSquares,
+  sideToMove,
+  terminalScore,
+  terminalState,
+  type Score,
+} from '@variant/chess-core';
 import { api } from '../../convex/_generated/api';
 import type { Doc, Id } from '../../convex/_generated/dataModel';
 import { EngineLines, type DisplayLine } from '../components/EngineLines';
@@ -16,6 +24,7 @@ import { GameTree, type TreeNode } from '../lib/tree';
 import { moveLabel } from '../lib/treeLayout';
 
 const LAST_MOVE_STYLE = { background: 'rgba(255, 210, 60, 0.42)' };
+const PICKED_STYLE = { background: 'rgba(91, 63, 217, 0.35)' };
 const GAME_OVER_TEXT = {
   checkmate: (fen: string) => `Checkmate — ${fen.split(' ')[1] === 'w' ? 'Black' : 'White'} wins.`,
   stalemate: () => 'Stalemate.',
@@ -45,6 +54,7 @@ type TreeData = NonNullable<ReturnType<typeof useQuery<typeof api.games.tree>>>;
 
 function Explorer({ data, tree }: { data: TreeData; tree: GameTree }) {
   const { game, analyses, progress } = data;
+  const chatted = useMemo(() => new Set(data.chatted), [data.chatted]);
   const [selectedId, setSelectedId] = useState<Id<'nodes'>>(tree.root._id);
   const [orientation, setOrientation] = useState<'white' | 'black'>('white');
   const [liveEnabled, setLiveEnabled] = useState(true);
@@ -55,6 +65,59 @@ function Explorer({ data, tree }: { data: TreeData; tree: GameTree }) {
   const [hoverId, setHoverId] = useState<Id<'nodes'> | null>(null);
 
   const node: TreeNode = tree.byId.get(selectedId) ?? tree.root;
+  const ready = game.status === 'ready';
+  const addMoves = useMutation(api.branches.addMoves);
+  // A move being saved shows on the board right away; click-to-move remembers the picked square.
+  const [pending, setPending] = useState<{ from: Id<'nodes'>; fen: string } | null>(null);
+  const [picked, setPicked] = useState<string | null>(null);
+  const [moveError, setMoveError] = useState<string | null>(null);
+  useEffect(() => setPicked(null), [node._id]);
+  const boardFen = pending?.from === node._id ? pending.fen : node.fen;
+  const ownPiece = (pieceType: string | undefined) => pieceType?.[0] === sideToMove(node.fen);
+
+  /** Plays a move from the selected position: follows an existing branch or adds a what-if. */
+  const tryMove = (from: string, to: string): boolean => {
+    if (!ready || pending) return false;
+    const move = moveFromSquares(node.fen, from, to);
+    if (!move) return false;
+    setPicked(null);
+    setMoveError(null);
+    const existing = tree.childrenOf(node).find((c) => c.moveUci === move.uci);
+    if (existing) {
+      setSelectedId(existing._id);
+      return true;
+    }
+    setPending({ from: node._id, fen: move.fen });
+    addMoves({ parentId: node._id, moves: [move.uci] })
+      .then((id) => setSelectedId(id))
+      .catch(() => setMoveError(`Couldn't add ${move.san}. Try again.`))
+      .finally(() => setPending(null));
+    return true;
+  };
+
+  const removeWhatIf = useMutation(api.branches.removeWhatIf);
+  /** Deletes one of the player's what-ifs and everything after it (asking first if that's several moves). */
+  const deleteWhatIf = useCallback(
+    (id: Id<'nodes'>) => {
+      const target = tree.byId.get(id);
+      if (!target || target.source !== 'user') return;
+      const doomed = tree.subtreeOf(target);
+      const later = doomed.length - 1;
+      if (later > 0 && !window.confirm(`Delete ${moveLabel(target)} and the ${later} move${later > 1 ? 's' : ''} after it?`)) {
+        return;
+      }
+      // Step off the branch first so the view never points at a deleted node.
+      if (doomed.some((n) => n._id === selectedId)) setSelectedId(target.parentId!);
+      void removeWhatIf({ nodeId: id });
+    },
+    [tree, selectedId, removeWhatIf],
+  );
+
+  const clickSquare = (square: string, pieceType: string | undefined) => {
+    if (!ready) return;
+    if (picked && picked !== square && tryMove(picked, square)) return;
+    setPicked(picked !== square && ownPiece(pieceType) ? square : null);
+  };
   const saved = analyses[node.positionKey];
   const terminal = useMemo(() => terminalState(node.fen), [node.fen]);
   // The browser engine only runs where the server hasn't analyzed the position yet.
@@ -99,6 +162,8 @@ function Explorer({ data, tree }: { data: TreeData; tree: GameTree }) {
         f: flip,
         t: () => setFullscreen((on) => !on),
         Escape: () => setFullscreen(false),
+        Delete: () => deleteWhatIf(node._id),
+        Backspace: () => deleteWhatIf(node._id),
       };
       const action = actions[e.key];
       if (action) {
@@ -108,13 +173,15 @@ function Explorer({ data, tree }: { data: TreeData; tree: GameTree }) {
     }
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [tree, node, go]);
+  }, [tree, node, go, deleteWhatIf]);
 
   const treeProps = {
     tree,
     analyses,
     selectedId: node._id,
     onSelect: setSelectedId,
+    onDelete: deleteWhatIf,
+    chatted,
     revealed,
     setRevealed,
     flipped: orientation === 'black',
@@ -160,13 +227,21 @@ function Explorer({ data, tree }: { data: TreeData; tree: GameTree }) {
                 <Chessboard
                   options={{
                     id: 'main',
-                    position: node.fen,
+                    position: boardFen,
                     boardOrientation: orientation,
-                    allowDragging: false,
+                    allowDragging: ready,
+                    canDragPiece: ({ piece }) => ready && ownPiece(piece.pieceType),
+                    onPieceDrop: ({ sourceSquare, targetSquare }) =>
+                      targetSquare ? tryMove(sourceSquare, targetSquare) : false,
+                    onSquareClick: ({ piece, square }) => clickSquare(square, piece?.pieceType),
                     animationDurationInMs: 150,
-                    squareStyles: node.moveUci
-                      ? { [node.moveUci.slice(0, 2)]: LAST_MOVE_STYLE, [node.moveUci.slice(2, 4)]: LAST_MOVE_STYLE }
-                      : {},
+                    squareStyles: {
+                      ...(node.moveUci && {
+                        [node.moveUci.slice(0, 2)]: LAST_MOVE_STYLE,
+                        [node.moveUci.slice(2, 4)]: LAST_MOVE_STYLE,
+                      }),
+                      ...(picked && { [picked]: PICKED_STYLE }),
+                    },
                     arrows: best?.pv[0]
                       ? [
                           {
@@ -180,6 +255,11 @@ function Explorer({ data, tree }: { data: TreeData; tree: GameTree }) {
                 />
               </div>
             </div>
+            {ready && (
+              <p className={`board-hint ${moveError ? 'error' : 'muted'}`}>
+                {moveError ?? 'Drag a piece (or click it, then a square) to try your own move.'}
+              </p>
+            )}
             <EvalGraph tree={tree} analyses={analyses} selectedId={node._id} onSelect={setSelectedId} />
             <p className="best-strip" title="Engine's best line">
               {terminal ? (
@@ -236,7 +316,8 @@ function Explorer({ data, tree }: { data: TreeData; tree: GameTree }) {
                   node={node}
                   analyses={analyses}
                   go={go}
-                  ready={game.status === 'ready'}
+                  onDelete={deleteWhatIf}
+                  ready={ready}
                   engine={
                     <EngineLines
                       fen={node.fen}
@@ -250,7 +331,7 @@ function Explorer({ data, tree }: { data: TreeData; tree: GameTree }) {
                 />
               )}
               {tab === 'tree' && !fullscreen && <GameTreeView {...treeProps} />}
-              {tab === 'moves' && <MoveList tree={tree} selectedId={node._id} onSelect={setSelectedId} />}
+              {tab === 'moves' && <MoveList tree={tree} selectedId={node._id} onSelect={setSelectedId} chatted={chatted} />}
             </div>
           </section>
         </div>
@@ -306,6 +387,7 @@ function PositionCard({
   node,
   analyses,
   go,
+  onDelete,
   ready,
   engine,
 }: {
@@ -313,6 +395,7 @@ function PositionCard({
   node: TreeNode;
   analyses: Record<string, Doc<'analyses'>>;
   go: (n: TreeNode | undefined) => void;
+  onDelete: (id: Id<'nodes'>) => void;
   ready: boolean;
   engine: React.ReactNode;
 }) {
@@ -362,11 +445,22 @@ function PositionCard({
           <button className="link" onClick={() => go(nearestMainline(tree, node))}>
             Back to game
           </button>
+          {node.source === 'user' && (
+            <button className="link" onClick={() => onDelete(node._id)} title="Remove this move and everything after it (Delete)">
+              Remove
+            </button>
+          )}
         </p>
       )}
 
       {engine}
-      <NodeChat key={node._id} node={node} ready={ready} bestLabel={bestLabel} />
+      <NodeChat
+        key={node._id}
+        node={node}
+        ready={ready}
+        bestLabel={bestLabel}
+        onSelect={(id) => go(tree.byId.get(id))}
+      />
     </div>
   );
 }

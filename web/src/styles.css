@@ -994,6 +994,43 @@ a {
   font-size: 13px;
 }
 
+/* Delete button on the player's what-ifs in the tree: shown on hover and when selected */
+.metro-delete {
+  display: none;
+  align-self: center;
+  margin-left: 6px;
+  padding: 0 6px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--panel);
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 18px;
+}
+.metro-delete:hover:not(:disabled) {
+  color: var(--error);
+  border-color: var(--error);
+}
+.metro-item:hover .metro-delete,
+.metro-item.selected .metro-delete {
+  display: inline-block;
+}
+.metro-card .metro-delete {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  margin: 0;
+}
+
+/* Moves the player has asked the coach about */
+.chat-mark {
+  flex: none;
+  margin-left: 5px;
+  vertical-align: -1px;
+  fill: var(--accent);
+  opacity: 0.85;
+}
+
 /* Node chat (Position tab) */
 
 .chat {
@@ -1060,6 +1097,25 @@ a {
   color: var(--muted);
   white-space: nowrap;
   text-overflow: ellipsis;
+}
+
+.chat-check-action {
+  cursor: pointer;
+  color: var(--accent);
+  border-color: var(--accent);
+  background: transparent;
+}
+.chat-check-action:hover:not(:disabled) {
+  background: var(--active);
+}
+
+.board-hint {
+  margin: 4px 0 0;
+  font-size: 12px;
+  text-align: center;
+}
+.board-hint.error {
+  color: var(--error);
 }
 
 .chat-form {
@@ -1219,6 +1275,7 @@ a {
 }
 
 .metro-card {
+  position: relative;
   display: flex;
   gap: 12px;
   width: 236px;

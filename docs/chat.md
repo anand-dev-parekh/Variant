@@ -48,6 +48,10 @@ output to the same type.
 | --- | --- | --- |
 | `play_moves` | `fen`, `moves[]` (SAN) | The line with move numbers, each resulting FEN, or the first illegal move and why |
 | `evaluate` | `fen` | Score (White POV), White win %, depth, top 3 lines in SAN |
+| `add_branch` | `moves[]` (SAN, from the chat's position) | Adds the line to the tree as a what-if (reusing moves already there); returns the line and the last node's id |
+
+The tools are built per reply (`chatTools({ nodeId, fen })`) so `add_branch` knows where to add.
+The prompt tells the model to use it when the player asks to see, show or play a line.
 
 `evaluate` reads the shared `analyses` cache first. On a miss it calls the engine service at the
 game pass's settings (`ANALYSIS_DEPTH`, `ANALYSIS_MULTIPV`) and saves the result, so tool
@@ -77,7 +81,13 @@ NVIDIA NIM through the AI SDK's OpenAI-compatible provider.
 
 Claude: current models reject sampling settings (no `temperature`); thinking is adaptive and
 always on; `effort: 'medium'` is set explicitly; `fallbacks: 'default'` reruns a declined reply on a
-fallback model. NIM: temperature 0.3.
+fallback model; and `thinking.blockBinding.prefixMismatchBehavior: 'drop_block'`. Opus 5.5 binds its
+thinking blocks to the exact system prompt, tools and history they were written with, and ours
+change (fact sheet updates, new tools, the 20-message window). Without `drop_block` every reply
+in an existing thread failed with a 400 after the tool list changed. NIM: temperature 0.3.
+
+If a reply fails before it streams, `respond` marks any pending reply in the thread `failed`, so
+the chat shows the error and accepts a new question instead of staying on "Thinking…".
 
 **Tested 2026-10-22, same fact sheets and questions:** Claude Opus 5.5 checked lines with tools
 and explained the actual idea correctly (28… Kc5: "the king belongs on e5, hitting the isolated

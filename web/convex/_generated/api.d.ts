@@ -8,6 +8,7 @@
  * @module
  */
 
+import type * as branches from "../branches.js";
 import type * as chat from "../chat.js";
 import type * as engine from "../engine.js";
 import type * as games from "../games.js";
@@ -24,6 +25,7 @@ import type {
 } from "convex/server";
 
 declare const fullApi: ApiFromModules<{
+  branches: typeof branches;
   chat: typeof chat;
   engine: typeof engine;
   games: typeof games;

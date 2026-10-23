@@ -20,6 +20,7 @@ import { formatScore, terminalScore, type Score } from '@variant/chess-core';
 import type { Doc, Id } from '../../convex/_generated/dataModel';
 import type { GameTree, TreeNode } from '../lib/tree';
 import { GEOMETRY, buildTreeView, itemPositions, moveLabel, type ViewItem } from '../lib/treeLayout';
+import { ChatMark } from './ChatMark';
 import { MiniBoard } from './MiniBoard';
 import { GLYPHS } from './MoveList';
 
@@ -33,6 +34,10 @@ type Props = {
   analyses: Record<string, Doc<'analyses'>>;
   selectedId: Id<'nodes'>;
   onSelect: (id: Id<'nodes'>) => void;
+  /** Deletes a what-if (the player's own moves) and everything after it. */
+  onDelete?: (id: Id<'nodes'>) => void;
+  /** Moves with a chat, marked with a speech bubble. */
+  chatted?: ReadonlySet<Id<'nodes'>>;
   /** Fold state lives with the page, so the tree keeps it when it moves between tab and full screen. */
   revealed: Revealed;
   setRevealed: (update: (prev: Revealed) => Revealed) => void;
@@ -47,6 +52,10 @@ type ItemData = {
   evalText?: string;
   bestText?: string;
   flipped: boolean;
+  /** Set on the player's own moves: shows a delete button. */
+  onDelete?: () => void;
+  /** The move has a chat (for a folded run: one of its moves does). */
+  chatted: boolean;
 };
 type ItemNode = Node<ItemData, ViewItem['kind']>;
 
@@ -63,7 +72,18 @@ export function GameTreeView(props: Props) {
   );
 }
 
-function TreeCanvas({ tree, analyses, selectedId, onSelect, revealed, setRevealed, flipped = false, onHover }: Props) {
+function TreeCanvas({
+  tree,
+  analyses,
+  selectedId,
+  onSelect,
+  onDelete,
+  chatted,
+  revealed,
+  setRevealed,
+  flipped = false,
+  onHover,
+}: Props) {
   const view = useMemo(() => buildTreeView(tree, revealed), [tree, revealed]);
   const positions = useMemo(() => itemPositions(view), [view]);
 
@@ -98,10 +118,12 @@ function TreeCanvas({ tree, analyses, selectedId, onSelect, revealed, setReveale
             evalText: item.kind === 'card' ? evalOf(analyses, node) : undefined,
             bestText: item.kind === 'card' && parent ? bestMoveOf(analyses, parent) : undefined,
             flipped,
+            onDelete: onDelete && item.kind !== 'run' && node.source === 'user' ? () => onDelete(node._id) : undefined,
+            chatted: !!chatted && item.nodes.some((n) => chatted.has(n._id)),
           },
         };
       }),
-    [view, positions, selectedId, onPath, analyses, tree, flipped],
+    [view, positions, selectedId, onPath, analyses, tree, flipped, onDelete, chatted],
   );
 
   const edges = useMemo(() => {
@@ -271,7 +293,9 @@ const MoveItem = memo(function MoveItem({ data }: NodeProps<ItemNode>) {
       <span className={dotClass(node, data)} />
       <span className="metro-label">
         <MoveLabel node={node} />
+        {data.chatted && <ChatMark />}
       </span>
+      <DeleteButton data={data} />
     </div>
   );
 });
@@ -289,6 +313,7 @@ const CardItem = memo(function CardItem({ data }: NodeProps<ItemNode>) {
         <div className="metro-card-text">
           <span className="metro-label">
             <MoveLabel node={node} />
+            {data.chatted && <ChatMark />}
           </span>
           <span className={`metro-verdict ${kind}`}>
             {verdict}
@@ -297,10 +322,30 @@ const CardItem = memo(function CardItem({ data }: NodeProps<ItemNode>) {
           {data.evalText && <span className="metro-meta">eval {data.evalText}</span>}
           {data.bestText && <span className="metro-meta">best {data.bestText}</span>}
         </div>
+        <DeleteButton data={data} />
       </div>
     </div>
   );
 });
+
+function DeleteButton({ data }: { data: ItemData }) {
+  if (!data.onDelete) return null;
+  const onDelete = data.onDelete;
+  return (
+    <button
+      className="metro-delete nodrag"
+      title="Delete this move and everything after it"
+      aria-label="Delete this what-if"
+      onClick={(e) => {
+        // Don't also select the move being deleted.
+        e.stopPropagation();
+        onDelete();
+      }}
+    >
+      ×
+    </button>
+  );
+}
 
 const RunItem = memo(function RunItem({ data }: NodeProps<ItemNode>) {
   const { nodes } = data.item;
@@ -321,6 +366,7 @@ const RunItem = memo(function RunItem({ data }: NodeProps<ItemNode>) {
         ) : (
           <span className="metro-num"> … +{nodes.length}</span>
         )}
+        {data.chatted && <ChatMark />}
       </span>
     </div>
   );

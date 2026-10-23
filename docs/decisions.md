@@ -3,6 +3,13 @@
 Why things are the way they are. Newest first. Add an entry when you make a choice someone might
 later want to undo.
 
+## What-ifs: judged like game moves, never branched; promotion is always a queen
+
+A move the player tries gets the same verdict as a game move, so the board and tree read the same
+everywhere. It doesn't get engine branches (those mark the game's turning points) and doesn't
+count toward key moments. Dragging a pawn to the last rank promotes to a queen; a picker can come
+later if underpromotion matters.
+
 ## Claude Opus 5.5 for node chat, NIM kept as a switchable fallback
 
 NIM's free models couldn't do the job even with a rich fact sheet: they skipped tool calls, mixed

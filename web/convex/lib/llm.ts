@@ -1,5 +1,6 @@
 import { createAnthropic } from '@ai-sdk/anthropic';
 import { createOpenAICompatible } from '@ai-sdk/openai-compatible';
+import type { ProviderOptions } from '@ai-sdk/provider-utils';
 import { env } from '../_generated/server';
 
 /** NVIDIA NIM's hosted, OpenAI-compatible API. */
@@ -12,7 +13,7 @@ type ChatModelConfig = {
   /** A provider model object (AI SDK 6), as the Agent requires. */
   languageModel: ReturnType<ReturnType<typeof createAnthropic>>;
   callSettings: { temperature?: number; maxRetries: number };
-  providerOptions?: { anthropic: Record<string, string> };
+  providerOptions?: ProviderOptions;
 };
 
 /**
@@ -28,9 +29,18 @@ export function chatModelConfig(): ChatModelConfig {
       languageModel: createAnthropic({ apiKey })(env.LLM_MODEL ?? DEFAULT_ANTHROPIC_MODEL),
       // Current Claude models reject sampling settings; thinking is adaptive and always on.
       callSettings: { maxRetries: 2 },
-      // Effort defaults to medium on Opus 5.5; set it so a model change doesn't move it silently.
-      // `fallbacks: 'default'` reruns a declined reply on a fallback model instead of failing it.
-      providerOptions: { anthropic: { effort: 'medium', fallbacks: 'default' } },
+      providerOptions: {
+        anthropic: {
+          // Effort defaults to medium on Opus 5.5; set it so a model change doesn't move it silently.
+          effort: 'medium',
+          // Reruns a declined reply on a fallback model instead of failing it.
+          fallbacks: 'default',
+          // Thinking blocks are bound to the exact prompt, tools and history they were written with.
+          // Ours change (fact sheet updates, new tools, the 20-message window), so drop stale blocks
+          // instead of failing the whole reply.
+          thinking: { type: 'adaptive', blockBinding: { prefixMismatchBehavior: 'drop_block' } },
+        },
+      },
     };
   }
 

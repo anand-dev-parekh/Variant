@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { playSanLine } from './position';
+import { moveFromSquares, playSanLine } from './position';
 
 const START_FEN = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1';
 
@@ -29,5 +29,20 @@ describe('playSanLine', () => {
   it('refuses moves once the game is over', () => {
     const mated = 'rnb1kbnr/pppp1ppp/8/4p3/6Pq/5P2/PPPPP2P/RNBQKBNR w KQkq - 1 3';
     expect(playSanLine(mated, ['e3']).illegal?.reason).toBe('the game is already over');
+  });
+});
+
+describe('moveFromSquares', () => {
+  it('turns a drag into a legal move', () => {
+    expect(moveFromSquares(START_FEN, 'g1', 'f3')).toMatchObject({ uci: 'g1f3', san: 'Nf3' });
+  });
+
+  it('rejects illegal drags and empty squares', () => {
+    expect(moveFromSquares(START_FEN, 'g1', 'g3')).toBeNull();
+    expect(moveFromSquares(START_FEN, 'e4', 'e5')).toBeNull();
+  });
+
+  it('promotes to a queen', () => {
+    expect(moveFromSquares('8/P7/8/8/8/8/8/k6K w - - 0 1', 'a7', 'a8')).toMatchObject({ uci: 'a7a8q', san: 'a8=Q+' });
   });
 });

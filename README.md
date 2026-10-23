@@ -32,7 +32,8 @@ No Convex account? `CONVEX_AGENT_MODE=anonymous npm run convex` runs a local bac
 Analysis needs the native engine service: set `ENGINE_URL` and `ENGINE_TOKEN` on your Convex
 deployment ([docs/engines.md](docs/engines.md) covers deploying it or running it locally).
 
-Keys in the explorer: ← → step, ↑ ↓ start/end, `f` flip board.
+Keys in the explorer: ← → step, ↑ ↓ start/end, `f` flip board. Drag pieces on the board to try
+your own moves; they become what-if branches in the tree.
 
 ## Status
 
@@ -40,6 +41,6 @@ Keys in the explorer: ← → step, ↑ ↓ start/end, `f` flip board.
 - [x] M2: Server engine pass, move classification, critical moments (Convex)
 - [x] M3: Tree view
 - [x] M4: Node chat
-- [ ] M5: What-if branches
+- [x] M5: What-if branches
 - [ ] M6: Detectors + punchline
 - [ ] M7: Evaluation

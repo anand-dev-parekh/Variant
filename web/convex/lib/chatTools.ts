@@ -1,6 +1,8 @@
 import { createTool } from '@convex-dev/agent';
 import { PROMPT_LINE_PLIES, formatSanLine, formatScore, playSanLine, terminalScore, winPercent } from '@variant/chess-core';
 import { z } from 'zod';
+import { internal } from '../_generated/api';
+import type { Id } from '../_generated/dataModel';
 import { analyzeCached } from './cachedEngine';
 
 /**
@@ -67,4 +69,37 @@ export const evaluate = createTool({
   },
 });
 
-export const chatTools = { evaluate, play_moves: playMoves };
+type AddedBranch = { error: string } | { added: string; nodeId: Id<'nodes'>; finalFen: string };
+
+/** Adds a line to the tree from the chat's position, so the player can step through it on the board. */
+function addBranch(from: { nodeId: Id<'nodes'>; fen: string }) {
+  return createTool({
+    description:
+      'Add a line of moves (SAN, starting from the current position) to the game tree as a what-if branch, ' +
+      'so the player can see it on the board and ask about the position at its end. Use it when the player asks ' +
+      'to see, show or play a line.',
+    inputSchema: z.object({
+      moves: z.array(z.string()).min(1).max(20).describe('Moves in SAN from the current position, e.g. ["Be3", "Bxe3", "fxe3"]'),
+    }),
+    execute: async (ctx, { moves }): Promise<AddedBranch> => {
+      const line = playSanLine(from.fen, moves);
+      if (line.illegal) {
+        return { error: `${line.illegal.move} (move ${line.illegal.index + 1}) is ${line.illegal.reason}` };
+      }
+      const nodeId = await ctx.runMutation(internal.branches.addMovesInternal, {
+        parentId: from.nodeId,
+        moves: line.moves.map((m) => m.uci),
+      });
+      return {
+        added: formatSanLine(from.fen, line.moves.map((m) => m.san)),
+        nodeId,
+        finalFen: line.moves.at(-1)!.fen,
+      };
+    },
+  });
+}
+
+/** The tools for a reply at one position. */
+export function chatTools(from: { nodeId: Id<'nodes'>; fen: string }) {
+  return { evaluate, play_moves: playMoves, add_branch: addBranch(from) };
+}

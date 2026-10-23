@@ -25,8 +25,8 @@ One position in a game's tree. The edge (the move into the position) is stored o
 | `fen`, `positionKey` | Full FEN, and the cache key (see below) |
 | `ply` | Half-moves from the game's start (root = 0). Branch nodes continue counting from their parent |
 | `moveSan?`, `moveUci?` | The move into this position. Absent on the root |
-| `source` | `game` (played), `engine` (alternative at a critical moment), `user` (what-if, M5) |
-| `classification?` | `best` · `good` · `inaccuracy` · `mistake` · `blunder`. Set on main-line moves at finalize |
+| `source` | `game` (played), `engine` (alternative at a critical moment), `user` (a what-if, from the board or the chat's `add_branch`) |
+| `classification?` | `best` · `good` · `inaccuracy` · `mistake` · `blunder`. Set on main-line moves at finalize, and on user moves once they're analyzed |
 | `winPercentLoss?` | Win-% points the mover gave up versus the best move |
 | `keyMoment?` | One of a player's biggest slips that wasn't a mistake or blunder; branched like a critical move |
 | `onlyMove?`, `critical?` | `critical` = a mistake or blunder (where the tree branches). See [move classification](move-classification.md) |
@@ -75,8 +75,9 @@ The chat thread for one node, created on its first question ([node chat](chat.md
 | --- | --- |
 | `nodeId` | The position the chat is about |
 | `threadId` | The Agent component's thread; its messages and stream deltas are stored there |
+| `gameId?` | The node's game, so `games.tree` can list chatted moves in one query. Optional only for threads made before it was added (`chat:backfillThreadGames` filled those in) |
 
-Index: `by_nodeId`.
+Indexes: `by_nodeId`, `by_gameId`.
 
 ## Not stored
 

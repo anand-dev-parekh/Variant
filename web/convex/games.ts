@@ -91,10 +91,17 @@ export const tree = query({
     const mainline = new Set(nodes.filter((n) => n.source === 'game').map((n) => n.positionKey));
     const analyzed = [...mainline].filter((key) => analyses[key]).length;
 
+    // Moves the player has asked the coach about (a thread exists once a question is sent).
+    const threads = await ctx.db
+      .query('threads')
+      .withIndex('by_gameId', (q) => q.eq('gameId', gameId))
+      .take(MAX_NODES);
+
     return {
       game,
       nodes,
       analyses,
+      chatted: threads.map((t) => t.nodeId),
       progress: { done: analyzed, total: mainline.size },
     };
   },

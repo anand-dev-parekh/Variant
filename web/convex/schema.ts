@@ -73,5 +73,9 @@ export default defineSchema({
   threads: defineTable({
     nodeId: v.id('nodes'),
     threadId: v.string(),
-  }).index('by_nodeId', ['nodeId']),
+    /** For marking chatted moves in the tree. Optional only for threads created before it existed. */
+    gameId: v.optional(v.id('games')),
+  })
+    .index('by_nodeId', ['nodeId'])
+    .index('by_gameId', ['gameId']),
 });

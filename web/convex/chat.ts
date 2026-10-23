@@ -1,10 +1,19 @@
-import { Agent, createThread, listUIMessages, saveMessage, stepCountIs, syncStreams, vStreamArgs } from '@convex-dev/agent';
+import {
+  Agent,
+  createThread,
+  listMessages,
+  listUIMessages,
+  saveMessage,
+  stepCountIs,
+  syncStreams,
+  vStreamArgs,
+} from '@convex-dev/agent';
 import { boardFacts, renderFactSheet, sideToMove, type Classification, type FactSheet, type Score } from '@variant/chess-core';
 import { paginationOptsValidator } from 'convex/server';
 import { ConvexError, v } from 'convex/values';
 import { components, internal } from './_generated/api';
 import type { Doc, Id } from './_generated/dataModel';
-import { internalAction, internalQuery, mutation, query, type QueryCtx } from './_generated/server';
+import { internalAction, internalMutation, internalQuery, mutation, query, type QueryCtx } from './_generated/server';
 import { scoreOfAnalysis } from './lib/cachedEngine';
 import { chatTools } from './lib/chatTools';
 import { chatModelConfig } from './lib/llm';
@@ -31,6 +40,7 @@ Ground rules:
 - The board section of the fact sheet (pieces, material, pawn structure) is exact; use it to describe the position. Don't work out moves, captures or threats from the board yourself: check them with the tools.
 - "What was played next" shows the evaluation (and any mistake) after each game move; use it to show where the game turned.
 - If the tools can't answer something, say so plainly rather than guess.
+- When the player asks to see, show or play a line, add it to the tree with add_branch (after checking it with play_moves), and tell them it's in the tree.
 
 Call the tools you need first, without writing anything in between. Then write only the final answer for the player: no notes to yourself, no drafts.
 
@@ -73,7 +83,7 @@ export const send = mutation({
     let threadId = (await threadRow(ctx, nodeId))?.threadId;
     if (!threadId) {
       threadId = await createThread(ctx, components.agent, { title: `${game.white} – ${game.black}, ply ${node.ply}` });
-      await ctx.db.insert('threads', { nodeId, threadId });
+      await ctx.db.insert('threads', { nodeId, threadId, gameId: node.gameId });
     }
 
     const { messageId } = await saveMessage(ctx, components.agent, { threadId, prompt: question });
@@ -91,7 +101,7 @@ export const respond = internalAction({
     const agent = new Agent(components.agent, {
       name: 'coach',
       ...chatModelConfig(),
-      tools: chatTools,
+      tools: chatTools({ nodeId, fen: sheet.fen }),
       stopWhen: stepCountIs(6),
       contextOptions: { recentMessages: 20 },
     });
@@ -109,8 +119,21 @@ export const respond = internalAction({
       );
       await result.consumeStream();
     } catch (err) {
-      // The agent has already marked the reply failed; keep the cause in the logs.
       console.error('chat.respond failed', err);
+      // A request rejected before streaming can leave the reply pending, which would lock the
+      // chat on "Thinking…". Mark anything still pending as failed so the player can ask again.
+      const pending = await listMessages(ctx, components.agent, {
+        threadId,
+        paginationOpts: { cursor: null, numItems: 10 },
+        statuses: ['pending'],
+      });
+      const error = err instanceof Error ? err.message : String(err);
+      for (const message of pending.page) {
+        await ctx.runMutation(components.agent.messages.finalizeMessage, {
+          messageId: message._id,
+          result: { status: 'failed', error },
+        });
+      }
     }
   },
 });
@@ -195,6 +218,23 @@ export const systemPrompt = internalQuery({
 function buildSystemPrompt(sheet: FactSheet) {
   return `${INSTRUCTIONS}\n\nFact sheet for this position:\n${renderFactSheet(sheet)}`;
 }
+
+/** One-off: fills in `gameId` on threads created before it existed. `npx convex run chat:backfillThreadGames` */
+export const backfillThreadGames = internalMutation({
+  args: {},
+  handler: async (ctx) => {
+    let updated = 0;
+    for (const thread of await ctx.db.query('threads').take(1000)) {
+      if (thread.gameId) continue;
+      const node = await ctx.db.get('nodes', thread.nodeId);
+      if (node) {
+        await ctx.db.patch('threads', thread._id, { gameId: node.gameId });
+        updated++;
+      }
+    }
+    return updated;
+  },
+});
 
 export const cachedAnalysis = internalQuery({
   args: { positionKey: v.string() },

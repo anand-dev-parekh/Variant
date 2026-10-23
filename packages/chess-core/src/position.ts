@@ -1,4 +1,4 @@
-import { Chess } from 'chess.js';
+import { Chess, type Square } from 'chess.js';
 import type { Score } from './score';
 
 /**
@@ -65,4 +65,15 @@ export function playSanLine(fen: string, sanMoves: string[]): PlayedLine {
     }
   }
   return { moves };
+}
+
+/**
+ * The move a piece dragged (or clicked) from one square to another makes, or null if illegal.
+ * Pawns reaching the last rank promote to a queen.
+ */
+export function moveFromSquares(fen: string, from: string, to: string): { uci: string; san: string; fen: string } | null {
+  const piece = new Chess(fen).get(from as Square);
+  if (!piece) return null;
+  const promotes = piece.type === 'p' && (to[1] === '8' || to[1] === '1');
+  return playUciLine(fen, [`${from}${to}${promotes ? 'q' : ''}`])[0] ?? null;
 }

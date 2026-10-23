@@ -51,6 +51,17 @@ export class GameTree {
     return line;
   }
 
+  /** `node` and every position after it, in any branch. */
+  subtreeOf(node: TreeNode): TreeNode[] {
+    const out: TreeNode[] = [];
+    const stack = [node];
+    for (let n = stack.pop(); n; n = stack.pop()) {
+      out.push(n);
+      stack.push(...this.childrenOf(n));
+    }
+    return out;
+  }
+
   /** Alternatives to the move into `node`: its siblings that aren't the played move. */
   alternativesTo(node: TreeNode): TreeNode[] {
     const parent = this.parentOf(node);

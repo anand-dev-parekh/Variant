@@ -1,11 +1,14 @@
 import { Fragment, useEffect, useRef } from 'react';
 import type { Id } from '../../convex/_generated/dataModel';
 import type { GameTree, TreeNode } from '../lib/tree';
+import { ChatMark } from './ChatMark';
 
 type Props = {
   tree: GameTree;
   selectedId: Id<'nodes'>;
   onSelect: (id: Id<'nodes'>) => void;
+  /** Moves with a chat. */
+  chatted: ReadonlySet<Id<'nodes'>>;
 };
 
 export const GLYPHS: Record<string, string> = { inaccuracy: '?!', mistake: '?', blunder: '??' };
@@ -13,7 +16,7 @@ export const GLYPHS: Record<string, string> = { inaccuracy: '?!', mistake: '?', 
 type Row = { number: string; white?: TreeNode; black?: TreeNode };
 
 /** The main line as numbered rows, with engine alternatives shown under each turning point. */
-export function MoveList({ tree, selectedId, onSelect }: Props) {
+export function MoveList({ tree, selectedId, onSelect, chatted }: Props) {
   const activeRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
@@ -29,6 +32,7 @@ export function MoveList({ tree, selectedId, onSelect }: Props) {
     >
       {node.moveSan}
       {node.classification && GLYPHS[node.classification]}
+      {chatted.has(node._id) && <ChatMark />}
     </button>
   );
 

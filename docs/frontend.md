@@ -22,13 +22,19 @@ Layout (`.workspace` grid): **board | tabbed panel**. Under 920 px they stack.
 - **Board column:** the board (`react-chessboard`) with the last move highlighted and an arrow
   for the best move, the eval bar, the **eval graph** (`EvalGraph`: White's win % across the main
   line, with marks at inaccuracies, mistakes, blunders and key moments; click or drag to jump),
-  a one-line strip with the engine's best line, and navigation buttons.
+  a one-line strip with the engine's best line, and navigation buttons. Once the game is
+  analyzed the board is **playable**: drag a piece, or click it and then a square (side to move
+  only). A move that's already in the tree just follows it; a new one becomes a what-if
+  (`branches.addMoves`), shown immediately while it saves. Pawns reaching the last rank become
+  queens for now (`moveFromSquares`, chess-core).
 - **Panel tabs** (the chosen tab is remembered in `localStorage`, default Tree):
   - **Position:** the selected move in words: verdict and win-% lost, "the engine preferred …"
-    with a link into that line, an only-move note, a "Back to game" link inside branches, then
+    with a link into that line, an only-move note, a "Back to game" link inside branches (plus
+    "Remove" on your what-ifs), then
     `EngineLines` (saved analysis, or live browser analysis with a "live" toggle), then
-    `NodeChat`: suggested questions, the thread with streamed replies and a chip per tool call,
-    and the question box ([node chat](chat.md)).
+    `NodeChat`: suggested questions, the thread with streamed replies and a chip per tool call
+    (a line the coach added has a "Show on board" chip), and the question box
+    ([node chat](chat.md)).
   - **Tree:** `GameTreeView`, below.
   - **Moves:** `MoveList`, the scoresheet, with engine lines under each turning point.
 - **Full-screen tree** (⤢ or `t`): the tree fills the window, with a floating board showing the
@@ -37,8 +43,18 @@ Layout (`.workspace` grid): **board | tabbed panel**. Under 920 px they stack.
 - **Header:** players, result, and per-player counts of inaccuracies/mistakes/blunders; a
   progress bar while analyzing.
 
+**Chat marks.** `games.tree` also returns `chatted`, the nodes with a chat thread (a thread is
+created by the first question). Those moves get a speech bubble (`ChatMark`) in the tree (stops,
+cards, and folded runs that contain one) and in the move list, and it appears live when you ask.
+
 Keyboard: ← parent, → next on the current line, ↑/Home start, ↓/End end of line, `f` flip, `t`
-full-screen tree, `Esc` close it.
+full-screen tree, `Esc` close it, Delete/Backspace remove the selected what-if.
+
+**Deleting what-ifs.** Your own moves can be deleted from the Position tab ("Remove"), from the
+tree (a × on the stop or card, shown on hover and when selected), or with Delete. All three go
+through `deleteWhatIf` in `Explorer`. It removes the move and everything after it
+(`branches.removeWhatIf`), asks first when that's more than one move, and moves the selection to
+the branch point if the selected move goes with it. Game moves and engine lines can't be deleted.
 
 ### `GameTree` (`lib/tree.ts`)
 
