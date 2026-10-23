@@ -8,8 +8,12 @@
  * @module
  */
 
+import type * as chat from "../chat.js";
 import type * as engine from "../engine.js";
 import type * as games from "../games.js";
+import type * as lib_cachedEngine from "../lib/cachedEngine.js";
+import type * as lib_chatTools from "../lib/chatTools.js";
+import type * as lib_llm from "../lib/llm.js";
 import type * as lib_remoteEngine from "../lib/remoteEngine.js";
 import type * as pipeline from "../pipeline.js";
 
@@ -20,8 +24,12 @@ import type {
 } from "convex/server";
 
 declare const fullApi: ApiFromModules<{
+  chat: typeof chat;
   engine: typeof engine;
   games: typeof games;
+  "lib/cachedEngine": typeof lib_cachedEngine;
+  "lib/chatTools": typeof lib_chatTools;
+  "lib/llm": typeof lib_llm;
   "lib/remoteEngine": typeof lib_remoteEngine;
   pipeline: typeof pipeline;
 }>;
@@ -52,4 +60,6 @@ export declare const internal: FilterApi<
   FunctionReference<any, "internal">
 >;
 
-export declare const components: {};
+export declare const components: {
+  agent: import("@convex-dev/agent/_generated/component.js").ComponentApi<"agent">;
+};

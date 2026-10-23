@@ -68,4 +68,10 @@ export default defineSchema({
     /** Best first, White POV. */
     lines: v.array(vEngineLine),
   }).index('by_positionKey', ['positionKey']),
+
+  /** The chat thread for a node (messages live in the agent component). Created on the first question. */
+  threads: defineTable({
+    nodeId: v.id('nodes'),
+    threadId: v.string(),
+  }).index('by_nodeId', ['nodeId']),
 });

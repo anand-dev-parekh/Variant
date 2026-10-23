@@ -3,6 +3,22 @@
 Why things are the way they are. Newest first. Add an entry when you make a choice someone might
 later want to undo.
 
+## Claude Opus 5.5 for node chat, NIM kept as a switchable fallback
+
+NIM's free models couldn't do the job even with a rich fact sheet: they skipped tool calls, mixed
+up whose move it was, and invented pieces the board section said weren't there. With the same
+prompt and tools, Opus 5.5 checked lines and explained the real idea in each test position, for
+roughly 3–5 cents a question. `LLM_PROVIDER` switches between them; NIM stays for free testing.
+
+## NVIDIA NIM for node chat, through the Convex Agent component
+
+NIM's hosted API is free for development, serves many open models, and is OpenAI-compatible,
+so the chat uses the AI SDK's generic OpenAI-compatible provider: switching provider or model is
+a change of `LLM_BASE_URL` / `LLM_MODEL`, not code. Alternatives considered: Gemini Flash's free
+tier, Groq, OpenRouter's free models. The Agent component (as the design doc planned) gives
+threads, tool-call steps and streamed replies over Convex's reactivity. It's pinned to v0.6 (AI
+SDK 6) because v0.7 needs Node 22.
+
 ## Branch only at mistakes and blunders, one line each
 
 The first version branched at every "critical" move with the engine's top two alternatives,
@@ -89,7 +105,5 @@ packages.
 
 ## Open questions
 
-- **LLM provider (M4):** undecided; budget under $50 to start. Keep the chat layer provider-
-  agnostic so it can be swapped.
 - **Detectors (M6):** undecided whether to follow Take Take Take's approach. Keep the per-node
   fact sheet pluggable.

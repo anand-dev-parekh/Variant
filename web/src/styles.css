@@ -989,12 +989,104 @@ a {
   color: var(--muted);
 }
 
-.chat-placeholder {
+.chat-note {
   margin: 0;
-  padding: 12px;
-  border: 1px dashed var(--border);
-  border-radius: 8px;
   font-size: 13px;
+}
+
+/* Node chat (Position tab) */
+
+.chat {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+}
+
+.chat-suggestions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.chat-suggestion {
+  padding: 5px 10px;
+  border-radius: 999px;
+  font-size: 13px;
+  text-align: left;
+}
+
+.chat-log {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.chat-msg {
+  font-size: 14px;
+  line-height: 1.55;
+  overflow-wrap: anywhere;
+}
+.chat-msg.user {
+  align-self: flex-end;
+  max-width: 85%;
+  padding: 7px 12px;
+  border-radius: 12px 12px 2px 12px;
+  background: var(--active);
+  white-space: pre-wrap;
+}
+.chat-msg.assistant p {
+  margin: 0 0 8px;
+}
+.chat-msg.assistant p:last-child {
+  margin-bottom: 0;
+}
+
+.chat-checks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-bottom: 6px;
+}
+.chat-check {
+  max-width: 100%;
+  overflow: hidden;
+  padding: 2px 8px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font: 12px/1.6 var(--font-mono);
+  color: var(--muted);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.chat-form {
+  display: flex;
+  gap: 8px;
+  align-items: flex-end;
+}
+.chat-form textarea {
+  flex: 1;
+  min-width: 0;
+  padding: 8px 10px;
+  font: 14px/1.45 var(--font-sans);
+  color: inherit;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  resize: vertical;
+  outline: none;
+}
+.chat-form textarea:focus {
+  border-color: var(--accent);
+}
+
+.chat-error {
+  margin: 0;
+  font-size: 13px;
+  color: var(--error);
 }
 
 /* Tree (React Flow): metro line with cards at turning points */

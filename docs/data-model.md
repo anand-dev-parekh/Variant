@@ -1,7 +1,7 @@
 # Data model
 
-Defined in `web/convex/schema.ts`. Three tables today; the design doc's fourth (`messages`, for
-node chat) arrives with milestone 4.
+Defined in `web/convex/schema.ts`: `games`, `nodes`, `analyses`, and `threads` for node chat.
+Chat messages themselves live in the Convex Agent component's tables.
 
 ## `games`
 
@@ -66,6 +66,17 @@ by a different move order, or in another game, reuses one analysis. Openings are
 analyzed once across all games.
 
 `saveAnalysis` inserts, or replaces an existing analysis only with a deeper one.
+
+## `threads`
+
+The chat thread for one node, created on its first question ([node chat](chat.md)).
+
+| Field | Notes |
+| --- | --- |
+| `nodeId` | The position the chat is about |
+| `threadId` | The Agent component's thread; its messages and stream deltas are stored there |
+
+Index: `by_nodeId`.
 
 ## Not stored
 

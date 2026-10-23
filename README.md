@@ -38,8 +38,8 @@ Keys in the explorer: ← → step, ↑ ↓ start/end, `f` flip board.
 
 - [x] M1: Board + PGN import + browser Stockfish evals
 - [x] M2: Server engine pass, move classification, critical moments (Convex)
-- [ ] M3: Tree view (first pass done; UI polish in progress)
-- [ ] M4: Node chat
+- [x] M3: Tree view
+- [x] M4: Node chat
 - [ ] M5: What-if branches
 - [ ] M6: Detectors + punchline
 - [ ] M7: Evaluation

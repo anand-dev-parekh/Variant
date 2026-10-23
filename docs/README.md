@@ -10,6 +10,7 @@ How the Chess Explorer prototype works, for anyone (human or agent) changing it.
 | [Analysis pipeline](analysis-pipeline.md) | What happens between "Analyze game" and a finished tree |
 | [Move classification](move-classification.md) | How a move becomes best / inaccuracy / mistake / blunder, and what "critical" means |
 | [Engines](engines.md) | The three places Stockfish runs, the engine service API, and deploying it |
+| [Node chat](chat.md) | How a position's chat works: fact sheet, tools, prompt, and the LLM provider |
 | [Frontend](frontend.md) | Pages, the board/tree/side-panel view, tree folding and layout, theming |
 | [Development](development.md) | Setup, commands, environment variables, tests, and known machine quirks |
 | [Decisions](decisions.md) | Why things are the way they are, with the alternatives we rejected |

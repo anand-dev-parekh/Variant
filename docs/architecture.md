@@ -20,16 +20,20 @@ flowchart LR
   end
   subgraph Convex
     Q[queries + mutations<br/>games.ts, pipeline.ts]
-    A[actions<br/>engine.ts]
-    DB[(games · nodes · analyses)]
+    A[actions<br/>engine.ts, chat.ts]
+    DB[(games · nodes · analyses · threads)]
+    AG[(Agent component<br/>messages, streams)]
   end
   ES[Engine service<br/>engine/server.mjs<br/>native Stockfish 19]
+  LLM[NVIDIA NIM<br/>OpenAI-compatible LLM]
 
   UI -- useQuery / useMutation --> Q
   Q --> DB
   Q -- scheduler --> A
   A -- POST /analyze --> ES
   A -- runMutation --> Q
+  A -- chat replies, tool loop --> LLM
+  A --> AG
   UI -- unanalyzed positions --> WASM
 ```
 
@@ -37,7 +41,8 @@ flowchart LR
 | --- | --- | --- |
 | Web app | `web/src/` | Vite + React 19. Board (react-chessboard), variation tree (React Flow), engine lines, move list |
 | Browser engine | `web/src/engine/` | Stockfish 19 lite (WASM) in a Web Worker. Live evals for positions the server hasn't analyzed. Never writes to the database |
-| Backend | `web/convex/` | Convex: schema, PGN import, the analysis pipeline, classification, tree queries. Reactive queries push updates to the browser live |
+| Backend | `web/convex/` | Convex: schema, PGN import, the analysis pipeline, classification, tree queries, node chat. Reactive queries push updates to the browser live |
+| LLM | NVIDIA NIM (`lib/llm.ts`) | Explains positions in the chat, calling tools for every fact ([node chat](chat.md)) |
 | Engine service | `engine/` | Native Stockfish 19 behind a small authenticated HTTP API. Deployed separately (Docker) |
 | Shared logic | `packages/chess-core/` | Pure TypeScript used by both the browser and Convex: PGN/UCI parsing, scores and win %, move classification |
 
@@ -55,6 +60,9 @@ flowchart LR
 4. **Explore.** The page reads the whole tree in one query (`games.tree`). Selecting a position
    shows its saved analysis; positions without one (deep in an engine line, or user moves later)
    get live analysis from the browser engine.
+5. **Ask.** Each position has a chat. A question goes to the LLM with the position's fact sheet;
+   the model checks moves and evaluations with tools before answering, and the reply streams
+   in. See [node chat](chat.md).
 
 Details: [analysis pipeline](analysis-pipeline.md), [move classification](move-classification.md).
 

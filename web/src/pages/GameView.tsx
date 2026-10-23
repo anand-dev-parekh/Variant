@@ -9,6 +9,7 @@ import { EvalBar } from '../components/EvalBar';
 import { EvalGraph } from '../components/EvalGraph';
 import { GameTreeView, type Revealed } from '../components/GameTreeView';
 import { GLYPHS, MoveList } from '../components/MoveList';
+import { NodeChat } from '../components/NodeChat';
 import { TopBar } from '../components/TopBar';
 import { useAnalysis } from '../engine/useAnalysis';
 import { GameTree, type TreeNode } from '../lib/tree';
@@ -235,6 +236,7 @@ function Explorer({ data, tree }: { data: TreeData; tree: GameTree }) {
                   node={node}
                   analyses={analyses}
                   go={go}
+                  ready={game.status === 'ready'}
                   engine={
                     <EngineLines
                       fen={node.fen}
@@ -298,18 +300,20 @@ const VERDICT: Record<string, string> = {
   blunder: 'Blunder',
 };
 
-/** What happened at the selected position, in words, above the engine lines. Chat goes here in M4. */
+/** What happened at the selected position, in words, then the engine lines and the chat. */
 function PositionCard({
   tree,
   node,
   analyses,
   go,
+  ready,
   engine,
 }: {
   tree: GameTree;
   node: TreeNode;
   analyses: Record<string, Doc<'analyses'>>;
   go: (n: TreeNode | undefined) => void;
+  ready: boolean;
   engine: React.ReactNode;
 }) {
   const parent = tree.parentOf(node);
@@ -362,7 +366,7 @@ function PositionCard({
       )}
 
       {engine}
-      <p className="chat-placeholder muted">Questions about this position will go here.</p>
+      <NodeChat key={node._id} node={node} ready={ready} bestLabel={bestLabel} />
     </div>
   );
 }

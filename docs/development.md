@@ -27,6 +27,7 @@ The first `npm run convex` asks you to log in and pick or create a deployment, a
 | `npx convex run pipeline:reclassify '{"gameId": "…"}'` | Re-runs classification/branching for a finished game |
 | `npx convex run pipeline:reanalyze '{"gameId": "…"}'` | Re-runs the whole pipeline (engine pass for missing analyses, then classification) |
 | `npx convex run pipeline:purgeAnalyses '{"engine": "…"}'` | Deletes saved analyses from one engine |
+| `npx convex run chat:systemPrompt '{"nodeId": "…"}'` | Prints the system prompt (rules + fact sheet) a chat reply at that node gets |
 | `npx convex env set NAME value` | Set a Convex environment variable |
 | `npx convex logs` | Stream backend logs |
 
@@ -37,6 +38,7 @@ Run `npx convex …` commands from `web/`.
 | Where | Name | |
 | --- | --- | --- |
 | Convex | `ENGINE_URL`, `ENGINE_TOKEN` | Engine service; required for analysis. Declared in `web/convex/convex.config.ts` |
+| Convex | `LLM_PROVIDER`, `ANTHROPIC_API_KEY`, `NVIDIA_API_KEY`, `LLM_MODEL`, `LLM_BASE_URL` | Node chat: provider, its key, model. See [node chat](chat.md) |
 | Engine service | `ENGINE_TOKEN`, `PORT`, `STOCKFISH_PATH`, `POOL_SIZE`, `HASH_MB` | See [engines](engines.md) |
 | Web (`web/.env.local`) | `VITE_CONVEX_URL` | Written by `convex dev` |
 
@@ -44,6 +46,8 @@ Run `npx convex …` commands from `web/`.
 
 - `packages/chess-core/src/*.test.ts`: PGN parsing, UCI parsing and SAN conversion, win %,
   classification including mate rules.
+- `packages/chess-core/src/position.test.ts`, `board.test.ts`, `factSheet.test.ts`: `play_moves`' SAN
+  replay, board facts, and the prompt's fact sheet.
 - `web/src/lib/treeLayout.test.ts`: folding and column packing.
 
 UI changes have been checked by driving the app in headless Chrome with Playwright and reading
@@ -69,7 +73,7 @@ may only export actions.
 
 - A Node 20 at `/usr/local/bin/node` shadows Homebrew's newer Node on this Mac. That's why the
   repo uses npm workspaces (pnpm wouldn't run) and pins tool versions that support Node 20 (vitest
-  3, Vite 6). `npm audit` flags some of these; they go away after upgrading Node and the tools.
+  3, Vite 6, Convex Agent 0.6 with AI SDK 6). `npm audit` flags some of these; they go away after upgrading Node and the tools.
 - `brew install railway` tries to compile LLVM from source on this setup (hours). Use
   `npx @railway/cli` instead.
 

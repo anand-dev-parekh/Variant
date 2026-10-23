@@ -1,4 +1,6 @@
+export * from './board';
 export * from './classify';
+export * from './factSheet';
 export * from './game';
 export * from './position';
 export * from './samples';

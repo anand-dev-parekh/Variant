@@ -26,8 +26,9 @@ Layout (`.workspace` grid): **board | tabbed panel**. Under 920 px they stack.
 - **Panel tabs** (the chosen tab is remembered in `localStorage`, default Tree):
   - **Position:** the selected move in words: verdict and win-% lost, "the engine preferred …"
     with a link into that line, an only-move note, a "Back to game" link inside branches, then
-    `EngineLines` (saved analysis, or live browser analysis with a "live" toggle). The chat for
-    the position goes here in M4.
+    `EngineLines` (saved analysis, or live browser analysis with a "live" toggle), then
+    `NodeChat`: suggested questions, the thread with streamed replies and a chip per tool call,
+    and the question box ([node chat](chat.md)).
   - **Tree:** `GameTreeView`, below.
   - **Moves:** `MoveList`, the scoresheet, with engine lines under each turning point.
 - **Full-screen tree** (⤢ or `t`): the tree fills the window, with a floating board showing the

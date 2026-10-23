@@ -44,3 +44,25 @@ export function playUciLine(fen: string, uciMoves: string[]): { uci: string; san
   }
   return out;
 }
+
+export type PlayedLine = {
+  moves: { san: string; uci: string; fen: string }[];
+  /** The first move that couldn't be played, if any; later moves were not tried. */
+  illegal?: { index: number; move: string; reason: string };
+};
+
+/** Plays SAN moves from `fen` (as written by a person or an LLM), stopping at the first illegal one. */
+export function playSanLine(fen: string, sanMoves: string[]): PlayedLine {
+  const chess = new Chess(fen);
+  const moves: PlayedLine['moves'] = [];
+  for (const [index, san] of sanMoves.entries()) {
+    try {
+      const move = chess.move(san.trim());
+      moves.push({ san: move.san, uci: move.lan, fen: move.after });
+    } catch {
+      const reason = chess.isGameOver() ? 'the game is already over' : `not legal for ${chess.turn() === 'w' ? 'White' : 'Black'} here`;
+      return { moves, illegal: { index, move: san, reason } };
+    }
+  }
+  return { moves };
+}
