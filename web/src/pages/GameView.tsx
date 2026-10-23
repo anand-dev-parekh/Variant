@@ -1,10 +1,11 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { Fragment, useCallback, useEffect, useMemo, useState } from 'react';
 import { useMutation, useQuery } from 'convex/react';
 import { Chessboard } from 'react-chessboard';
 import {
   formatSanLine,
   formatScore,
   moveFromSquares,
+  positionKey,
   sideToMove,
   terminalScore,
   terminalState,
@@ -17,9 +18,11 @@ import { EvalBar } from '../components/EvalBar';
 import { EvalGraph } from '../components/EvalGraph';
 import { GameTreeView, type Revealed } from '../components/GameTreeView';
 import { GLYPHS, MoveList } from '../components/MoveList';
+import { MaterialStrip } from '../components/MaterialStrip';
 import { NodeChat } from '../components/NodeChat';
 import { TopBar } from '../components/TopBar';
 import { useAnalysis } from '../engine/useAnalysis';
+import { nodesAlong, type LineLink } from '../lib/chatLines';
 import { GameTree, type TreeNode } from '../lib/tree';
 import { moveLabel } from '../lib/treeLayout';
 
@@ -73,6 +76,59 @@ function Explorer({ data, tree }: { data: TreeData; tree: GameTree }) {
   const [moveError, setMoveError] = useState<string | null>(null);
   useEffect(() => setPicked(null), [node._id]);
   const boardFen = pending?.from === node._id ? pending.fen : node.fen;
+  const prevFen = boardFen === node.fen ? tree.parentOf(node)?.fen : node.fen;
+
+  // A line from the chat, shown on the board without touching the tree. `index` is the step on
+  // the board; -1 is the position the line starts from.
+  const [preview, setPreview] = useState<(LineLink & { index: number }) | null>(null);
+  const [saving, setSaving] = useState(false);
+  // After "Add to tree": the new line's last node, and how far back from it to land.
+  const [jump, setJump] = useState<{ lastId: Id<'nodes'>; up: number } | null>(null);
+  const startPreview = useCallback((link: LineLink) => {
+    setPreview({ ...link, index: link.first });
+    setPicked(null);
+  }, []);
+  const stepTo = (index: number) =>
+    setPreview((p) => p && { ...p, index: Math.max(-1, Math.min(p.steps.length - 1, index)) });
+  // Choosing another position ends the preview.
+  useEffect(() => setPreview(null), [node._id]);
+  useEffect(() => {
+    if (!jump || !tree.byId.has(jump.lastId)) return;
+    let target = tree.byId.get(jump.lastId);
+    for (let i = 0; i < jump.up && target; i++) target = tree.parentOf(target);
+    if (target) setSelectedId(target._id);
+    setJump(null);
+  }, [jump, tree]);
+
+  const previewStep = preview && preview.index >= 0 ? preview.steps[preview.index] : undefined;
+  const viewFen = preview ? (previewStep?.fen ?? preview.baseFen) : boardFen;
+  const viewPrevFen = preview
+    ? preview.index > 0
+      ? preview.steps[preview.index - 1]!.fen
+      : preview.index === 0
+        ? preview.baseFen
+        : undefined
+    : prevFen;
+  const lastUci = preview ? previewStep?.uci : node.moveUci;
+  // The position the eval bar, engine lines and best move describe.
+  const analysisFen = preview ? viewFen : node.fen;
+  const previewNodes = preview ? nodesAlong(tree, preview) : [];
+  const previewInTree = preview !== null && previewNodes.length === preview.steps.length;
+
+  /** Puts the previewed line in the tree (or finds it there) and selects the step on the board. */
+  const keepPreview = () => {
+    if (!preview || saving) return;
+    if (previewInTree) {
+      setSelectedId(preview.index >= 0 ? previewNodes[preview.index]!._id : preview.baseId);
+      return;
+    }
+    setSaving(true);
+    setMoveError(null);
+    addMoves({ parentId: preview.baseId, moves: preview.steps.map((s) => s.uci) })
+      .then((lastId) => setJump({ lastId, up: preview.steps.length - 1 - preview.index }))
+      .catch(() => setMoveError("Couldn't add that line. Try again."))
+      .finally(() => setSaving(false));
+  };
   const ownPiece = (pieceType: string | undefined) => pieceType?.[0] === sideToMove(node.fen);
 
   /** Plays a move from the selected position: follows an existing branch or adds a what-if. */
@@ -114,14 +170,14 @@ function Explorer({ data, tree }: { data: TreeData; tree: GameTree }) {
   );
 
   const clickSquare = (square: string, pieceType: string | undefined) => {
-    if (!ready) return;
+    if (!ready || preview) return;
     if (picked && picked !== square && tryMove(picked, square)) return;
     setPicked(picked !== square && ownPiece(pieceType) ? square : null);
   };
-  const saved = analyses[node.positionKey];
-  const terminal = useMemo(() => terminalState(node.fen), [node.fen]);
+  const saved = analyses[positionKey(analysisFen)];
+  const terminal = useMemo(() => terminalState(analysisFen), [analysisFen]);
   // The browser engine only runs where the server hasn't analyzed the position yet.
-  const live = useAnalysis(node.fen, liveEnabled && !saved && !terminal);
+  const live = useAnalysis(analysisFen, liveEnabled && !saved && !terminal);
 
   let lines: DisplayLine[] | null = null;
   let status = '';
@@ -135,9 +191,23 @@ function Explorer({ data, tree }: { data: TreeData; tree: GameTree }) {
     best = live.lines[0];
     status = `live · depth ${live.depth}${live.done ? '' : '…'}`;
   }
-  const barScore = terminal ? terminalScore(node.fen, terminal) : (best?.score ?? null);
+  const barScore = terminal ? terminalScore(analysisFen, terminal) : (best?.score ?? null);
 
   const go = useCallback((target: TreeNode | undefined) => target && setSelectedId(target._id), []);
+  // The arrows and buttons step through the preview while one is open, else through the tree.
+  const nav = preview
+    ? {
+        start: () => stepTo(-1),
+        back: () => stepTo(preview.index - 1),
+        forward: () => stepTo(preview.index + 1),
+        end: () => stepTo(preview.steps.length - 1),
+      }
+    : {
+        start: () => go(tree.root),
+        back: () => go(tree.parentOf(node)),
+        forward: () => go(tree.next(node)),
+        end: () => go(tree.lineFrom(node).at(-1)),
+      };
   const flip = () => setOrientation((o) => (o === 'white' ? 'black' : 'white'));
 
   const chooseTab = (next: Tab) => {
@@ -153,17 +223,19 @@ function Explorer({ data, tree }: { data: TreeData; tree: GameTree }) {
     function onKey(e: KeyboardEvent) {
       if (e.target instanceof HTMLElement && e.target.closest('input, textarea')) return;
       const actions: Record<string, () => void> = {
-        ArrowLeft: () => go(tree.parentOf(node)),
-        ArrowRight: () => go(tree.next(node)),
-        ArrowUp: () => go(tree.root),
-        Home: () => go(tree.root),
-        ArrowDown: () => go(tree.lineFrom(node).at(-1)),
-        End: () => go(tree.lineFrom(node).at(-1)),
+        ArrowLeft: nav.back,
+        ArrowRight: nav.forward,
+        ArrowUp: nav.start,
+        Home: nav.start,
+        ArrowDown: nav.end,
+        End: nav.end,
         f: flip,
         t: () => setFullscreen((on) => !on),
-        Escape: () => setFullscreen(false),
-        Delete: () => deleteWhatIf(node._id),
-        Backspace: () => deleteWhatIf(node._id),
+        Escape: () => (preview ? setPreview(null) : setFullscreen(false)),
+        ...(!preview && {
+          Delete: () => deleteWhatIf(node._id),
+          Backspace: () => deleteWhatIf(node._id),
+        }),
       };
       const action = actions[e.key];
       if (action) {
@@ -173,7 +245,7 @@ function Explorer({ data, tree }: { data: TreeData; tree: GameTree }) {
     }
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [tree, node, go, deleteWhatIf]);
+  }, [nav, preview, node, deleteWhatIf]);
 
   const treeProps = {
     tree,
@@ -221,24 +293,31 @@ function Explorer({ data, tree }: { data: TreeData; tree: GameTree }) {
 
         <div className="workspace">
           <div className="board-column">
-            <div className="board-area">
+            <div className={`board-area${preview ? ' previewing' : ''}`}>
               <EvalBar score={barScore} orientation={orientation} />
               <div className="board">
+                <MaterialStrip
+                  fen={viewFen}
+                  prevFen={viewPrevFen}
+                  side={orientation === 'white' ? 'b' : 'w'}
+                  name={orientation === 'white' ? game.black : game.white}
+                />
+                <div className="board-square">
                 <Chessboard
                   options={{
                     id: 'main',
-                    position: boardFen,
+                    position: viewFen,
                     boardOrientation: orientation,
-                    allowDragging: ready,
+                    allowDragging: ready && !preview,
                     canDragPiece: ({ piece }) => ready && ownPiece(piece.pieceType),
                     onPieceDrop: ({ sourceSquare, targetSquare }) =>
                       targetSquare ? tryMove(sourceSquare, targetSquare) : false,
                     onSquareClick: ({ piece, square }) => clickSquare(square, piece?.pieceType),
                     animationDurationInMs: 150,
                     squareStyles: {
-                      ...(node.moveUci && {
-                        [node.moveUci.slice(0, 2)]: LAST_MOVE_STYLE,
-                        [node.moveUci.slice(2, 4)]: LAST_MOVE_STYLE,
+                      ...(lastUci && {
+                        [lastUci.slice(0, 2)]: LAST_MOVE_STYLE,
+                        [lastUci.slice(2, 4)]: LAST_MOVE_STYLE,
                       }),
                       ...(picked && { [picked]: PICKED_STYLE }),
                     },
@@ -253,9 +332,26 @@ function Explorer({ data, tree }: { data: TreeData; tree: GameTree }) {
                       : [],
                   }}
                 />
+                </div>
+                <MaterialStrip
+                  fen={viewFen}
+                  prevFen={viewPrevFen}
+                  side={orientation === 'white' ? 'w' : 'b'}
+                  name={orientation === 'white' ? game.white : game.black}
+                />
               </div>
             </div>
-            {ready && (
+            {preview && (
+              <PreviewBar
+                preview={preview}
+                inTree={previewInTree}
+                saving={saving}
+                onStep={stepTo}
+                onKeep={keepPreview}
+                onExit={() => setPreview(null)}
+              />
+            )}
+            {ready && (!preview || moveError) && (
               <p className={`board-hint ${moveError ? 'error' : 'muted'}`}>
                 {moveError ?? 'Drag a piece (or click it, then a square) to try your own move.'}
               </p>
@@ -263,27 +359,27 @@ function Explorer({ data, tree }: { data: TreeData; tree: GameTree }) {
             <EvalGraph tree={tree} analyses={analyses} selectedId={node._id} onSelect={setSelectedId} />
             <p className="best-strip" title="Engine's best line">
               {terminal ? (
-                GAME_OVER_TEXT[terminal](node.fen)
+                GAME_OVER_TEXT[terminal](analysisFen)
               ) : best ? (
                 <>
                   <span className="best-score">{formatScore(best.score)}</span>
-                  <span className="best-line">{formatSanLine(node.fen, best.san.slice(0, 8))}</span>
+                  <span className="best-line">{formatSanLine(analysisFen, best.san.slice(0, 8))}</span>
                 </>
               ) : (
                 <span className="muted">{liveEnabled ? 'Thinking…' : 'No saved analysis'}</span>
               )}
             </p>
             <nav className="controls" aria-label="Move navigation">
-              <button onClick={() => go(tree.root)} title="Start (↑)">
+              <button onClick={nav.start} title="Start (↑)">
                 ⏮
               </button>
-              <button onClick={() => go(tree.parentOf(node))} title="Back (←)">
+              <button onClick={nav.back} title="Back (←)">
                 ◀
               </button>
-              <button onClick={() => go(tree.next(node))} title="Forward (→)">
+              <button onClick={nav.forward} title="Forward (→)">
                 ▶
               </button>
-              <button onClick={() => go(tree.lineFrom(node).at(-1))} title="End of line (↓)">
+              <button onClick={nav.end} title="End of line (↓)">
                 ⏭
               </button>
               <button onClick={flip} title="Flip board (f)">
@@ -317,13 +413,15 @@ function Explorer({ data, tree }: { data: TreeData; tree: GameTree }) {
                   analyses={analyses}
                   go={go}
                   onDelete={deleteWhatIf}
+                  onPreview={startPreview}
+                  previewing={preview && { inTree: previewInTree, saving, onKeep: keepPreview }}
                   ready={ready}
                   engine={
                     <EngineLines
-                      fen={node.fen}
+                      fen={analysisFen}
                       lines={lines}
                       status={status}
-                      gameOver={terminal ? GAME_OVER_TEXT[terminal](node.fen) : null}
+                      gameOver={terminal ? GAME_OVER_TEXT[terminal](analysisFen) : null}
                       liveEnabled={liveEnabled}
                       onToggleLive={() => setLiveEnabled((on) => !on)}
                     />
@@ -363,6 +461,58 @@ function Explorer({ data, tree }: { data: TreeData; tree: GameTree }) {
   );
 }
 
+/** Under the board while a chat line is previewed: its moves (click to jump), keep, and exit. */
+function PreviewBar({
+  preview,
+  inTree,
+  saving,
+  onStep,
+  onKeep,
+  onExit,
+}: {
+  preview: LineLink & { index: number };
+  inTree: boolean;
+  saving: boolean;
+  onStep: (index: number) => void;
+  onKeep: () => void;
+  onExit: () => void;
+}) {
+  return (
+    <div className="line-preview" role="region" aria-label="Line preview">
+      <p className="line-preview-moves">
+        <button className={`line-preview-move start${preview.index === -1 ? ' current' : ''}`} onClick={() => onStep(-1)} title="Position the line starts from">
+          Start
+        </button>
+        {preview.steps.map((step, i) => {
+          const before = i ? preview.steps[i - 1]!.fen : preview.baseFen;
+          const [, turn, , , , fullmove] = before.split(' ');
+          const number = turn === 'w' ? `${fullmove}.` : i === 0 ? `${fullmove}…` : '';
+          return (
+            <Fragment key={i}>
+              {number && <span className="line-preview-number">{number}</span>}
+              <button
+                className={`line-preview-move${i === preview.index ? ' current' : ''}${i < preview.first ? ' lead-in' : ''}`}
+                onClick={() => onStep(i)}
+              >
+                {step.san}
+              </button>
+            </Fragment>
+          );
+        })}
+      </p>
+      <div className="line-preview-actions">
+        <span className="muted">Previewing · ← → to step</span>
+        <button className="ghost" onClick={onExit} title="Back to the tree (Esc)">
+          Exit
+        </button>
+        <button className="primary" onClick={onKeep} disabled={saving}>
+          {inTree ? 'Go to it in the tree' : saving ? 'Adding…' : 'Add to tree'}
+        </button>
+      </div>
+    </div>
+  );
+}
+
 function readTab(): Tab {
   try {
     const saved = localStorage.getItem(TAB_KEY);
@@ -388,6 +538,8 @@ function PositionCard({
   analyses,
   go,
   onDelete,
+  onPreview,
+  previewing,
   ready,
   engine,
 }: {
@@ -396,6 +548,8 @@ function PositionCard({
   analyses: Record<string, Doc<'analyses'>>;
   go: (n: TreeNode | undefined) => void;
   onDelete: (id: Id<'nodes'>) => void;
+  onPreview: (link: LineLink) => void;
+  previewing: React.ComponentProps<typeof NodeChat>['previewing'];
   ready: boolean;
   engine: React.ReactNode;
 }) {
@@ -440,17 +594,26 @@ function PositionCard({
         <p className="position-note">Only move: every alternative lost ground.</p>
       )}
       {node.source !== 'game' && (
-        <p className="position-note branch">
-          {node.source === 'engine' ? 'Engine line, not played in the game.' : 'Your what-if.'}{' '}
-          <button className="link" onClick={() => go(nearestMainline(tree, node))}>
-            Back to game
-          </button>
-          {node.source === 'user' && (
-            <button className="link" onClick={() => onDelete(node._id)} title="Remove this move and everything after it (Delete)">
-              Remove
+        <div className="position-note branch">
+          <span>{node.source === 'engine' ? 'Engine line, not played in the game.' : 'Your what-if.'}</span>
+          <div className="branch-actions">
+            <button className="branch-action" onClick={() => go(nearestMainline(tree, node))}>
+              ← Back to game
             </button>
-          )}
-        </p>
+            {node.source === 'user' && (
+              <button
+                className="branch-action danger"
+                onClick={() => onDelete(node._id)}
+                title="Remove this move and everything after it (Delete)"
+              >
+                <svg width="13" height="13" viewBox="0 0 16 16" aria-hidden>
+                  <path d="M6 2h4M2.5 4h11M4 4l.7 9.2a1 1 0 0 0 1 .8h4.6a1 1 0 0 0 1-.8L12 4M6.5 7v4.5M9.5 7v4.5" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
+                </svg>
+                Remove
+              </button>
+            )}
+          </div>
+        </div>
       )}
 
       {engine}
@@ -460,6 +623,9 @@ function PositionCard({
         ready={ready}
         bestLabel={bestLabel}
         onSelect={(id) => go(tree.byId.get(id))}
+        tree={tree}
+        onPreview={onPreview}
+        previewing={previewing}
       />
     </div>
   );

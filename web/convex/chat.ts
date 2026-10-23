@@ -11,9 +11,9 @@ import {
 import { boardFacts, renderFactSheet, sideToMove, type Classification, type FactSheet, type Score } from '@variant/chess-core';
 import { paginationOptsValidator } from 'convex/server';
 import { ConvexError, v } from 'convex/values';
-import { components, internal } from './_generated/api';
+import { api, components, internal } from './_generated/api';
 import type { Doc, Id } from './_generated/dataModel';
-import { internalAction, internalMutation, internalQuery, mutation, query, type QueryCtx } from './_generated/server';
+import { internalAction, internalMutation, internalQuery, mutation, query, type ActionCtx, type QueryCtx } from './_generated/server';
 import { scoreOfAnalysis } from './lib/cachedEngine';
 import { chatTools } from './lib/chatTools';
 import { chatModelConfig } from './lib/llm';
@@ -23,6 +23,12 @@ const MAX_QUESTION = 1000;
 
 /** Moves of the game shown after the position, with their evaluations. */
 const CONTINUATION_PLIES = 6;
+
+/** Earlier exchanges (question and answer) from the line's other chats given to the model. */
+const EARLIER_EXCHANGES = 8;
+
+/** Earlier answers are cut to this many characters in the prompt. */
+const EARLIER_ANSWER_CHARS = 1200;
 
 /** Longest a reply may take, tool calls included, before it is marked failed. */
 const REPLY_TIMEOUT_MS = 120_000;
@@ -41,6 +47,7 @@ Ground rules:
 - "What was played next" shows the evaluation (and any mistake) after each game move; use it to show where the game turned.
 - If the tools can't answer something, say so plainly rather than guess.
 - When the player asks to see, show or play a line, add it to the tree with add_branch (after checking it with play_moves), and tell them it's in the tree.
+- The earlier conversation (if any) happened at other positions on this line. Use it to follow the player's train of thought, but don't carry its claims over to this position: check them against the fact sheet and the tools.
 
 Call the tools you need first, without writing anything in between. Then write only the final answer for the player: no notes to yourself, no drafts.
 
@@ -55,6 +62,14 @@ export const threadFor = query({
     const row = await threadRow(ctx, nodeId);
     return row?.threadId ?? null;
   },
+});
+
+type EarlierThread = { nodeId: Id<'nodes'>; threadId: string; label: string };
+
+/** Chats at the moves leading to a node (not the node's own), oldest first. */
+export const earlierThreads = query({
+  args: { nodeId: v.id('nodes') },
+  handler: (ctx, { nodeId }) => earlierThreadsOf(ctx, nodeId),
 });
 
 /** A thread's messages, plus live deltas of any reply still streaming (for useUIMessages). */
@@ -98,6 +113,8 @@ export const respond = internalAction({
   handler: async (ctx, { nodeId, threadId, promptMessageId }) => {
     const sheet: FactSheet | null = await ctx.runQuery(internal.chat.factSheet, { nodeId });
     if (!sheet) return;
+    const threads: EarlierThread[] = await ctx.runQuery(api.chat.earlierThreads, { nodeId });
+    const earlier = await earlierConversation(ctx, threads);
     const agent = new Agent(components.agent, {
       name: 'coach',
       ...chatModelConfig(),
@@ -111,7 +128,7 @@ export const respond = internalAction({
         { threadId },
         {
           promptMessageId,
-          system: buildSystemPrompt(sheet),
+          system: buildSystemPrompt(sheet, earlier),
           // A stalled provider would otherwise leave the reply pending until the action times out.
           abortSignal: AbortSignal.timeout(REPLY_TIMEOUT_MS),
         },
@@ -211,12 +228,86 @@ export const systemPrompt = internalQuery({
   args: { nodeId: v.id('nodes') },
   handler: async (ctx, { nodeId }): Promise<string | null> => {
     const sheet: FactSheet | null = await ctx.runQuery(internal.chat.factSheet, { nodeId });
-    return sheet && buildSystemPrompt(sheet);
+    return sheet && buildSystemPrompt(sheet, await earlierConversation(ctx, await earlierThreadsOf(ctx, nodeId)));
   },
 });
 
-function buildSystemPrompt(sheet: FactSheet) {
-  return `${INSTRUCTIONS}\n\nFact sheet for this position:\n${renderFactSheet(sheet)}`;
+function buildSystemPrompt(sheet: FactSheet, earlier: string) {
+  const prompt = `${INSTRUCTIONS}\n\nFact sheet for this position:\n${renderFactSheet(sheet)}`;
+  return earlier ? `${prompt}\n\nEarlier conversation on this line, at other positions:\n${earlier}` : prompt;
+}
+
+async function earlierThreadsOf(ctx: QueryCtx, nodeId: Id<'nodes'>): Promise<EarlierThread[]> {
+  const node = await ctx.db.get('nodes', nodeId);
+  if (!node) return [];
+  const rows = await ctx.db
+    .query('threads')
+    .withIndex('by_gameId', (q) => q.eq('gameId', node.gameId))
+    .take(500);
+  const threadOf = new Map(rows.map((r) => [r.nodeId, r.threadId]));
+  threadOf.delete(nodeId);
+  if (threadOf.size === 0) return [];
+
+  const out: EarlierThread[] = [];
+  for (let at = node; at.parentId; ) {
+    const parent = await ctx.db.get('nodes', at.parentId);
+    if (!parent) break;
+    const threadId = threadOf.get(parent._id);
+    if (threadId) out.push({ nodeId: parent._id, threadId, label: moveLabel(parent) });
+    at = parent;
+  }
+  return out.reverse();
+}
+
+/**
+ * The questions and final answers from chats at earlier moves on the line, newest last, as
+ * prompt text: "At 10. Bd5:\n  Player: …\n  Coach: …". Only the most recent exchanges are kept.
+ */
+async function earlierConversation(ctx: QueryCtx | ActionCtx, threads: EarlierThread[]): Promise<string> {
+  const sections: { label: string; exchanges: string[] }[] = [];
+  let kept = 0;
+  // Newest threads first, so the limit drops the oldest exchanges.
+  for (const thread of [...threads].reverse()) {
+    if (kept >= EARLIER_EXCHANGES) break;
+    const { page } = await listMessages(ctx, components.agent, {
+      threadId: thread.threadId,
+      excludeToolMessages: true,
+      paginationOpts: { cursor: null, numItems: 100 },
+    });
+    const byOrder = new Map<number, { question?: string; answer?: string; step: number }>();
+    for (const m of page) {
+      const text = m.text?.trim();
+      if (!text || m.status !== 'success') continue;
+      const entry = byOrder.get(m.order) ?? { step: -1 };
+      if (m.message?.role === 'user') entry.question = text;
+      // The last text step is the answer; earlier ones are the model's working between tool calls.
+      else if (m.message?.role === 'assistant' && m.stepOrder > entry.step) {
+        entry.answer = text;
+        entry.step = m.stepOrder;
+      }
+      byOrder.set(m.order, entry);
+    }
+    const exchanges = [...byOrder.entries()]
+      .sort(([a], [b]) => a - b)
+      .flatMap(([, e]) => (e.question && e.answer ? [`  Player: ${e.question}\n  Coach: ${clip(e.answer)}`] : []))
+      .slice(-(EARLIER_EXCHANGES - kept));
+    if (!exchanges.length) continue;
+    kept += exchanges.length;
+    sections.unshift({ label: thread.label, exchanges });
+  }
+  return sections.map((s) => `At ${s.label}:\n${s.exchanges.join('\n')}`).join('\n');
+}
+
+function clip(text: string) {
+  return text.length > EARLIER_ANSWER_CHARS ? `${text.slice(0, EARLIER_ANSWER_CHARS)}…` : text;
+}
+
+/** "10. Bd5" or "9… Na5" for the move into a node; "the starting position" at the root. */
+function moveLabel(node: Doc<'nodes'>) {
+  if (!node.moveSan) return 'the starting position';
+  const [, turn, , , , fullmove] = node.fen.split(' ');
+  const whiteMoved = turn === 'b';
+  return `${whiteMoved ? Number(fullmove) : Number(fullmove) - 1}${whiteMoved ? '.' : '…'} ${node.moveSan}`;
 }
 
 /** One-off: fills in `gameId` on threads created before it existed. `npx convex run chat:backfillThreadGames` */

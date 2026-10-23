@@ -20,7 +20,9 @@ for each position, and progress. It builds a `GameTree` and renders `Explorer`.
 Layout (`.workspace` grid): **board | tabbed panel**. Under 920 px they stack.
 
 - **Board column:** the board (`react-chessboard`) with the last move highlighted and an arrow
-  for the best move, the eval bar, the **eval graph** (`EvalGraph`: White's win % across the main
+  for the best move, the eval bar, a **player row** above and below it (`MaterialStrip`: name,
+  the pieces that side has captured with the latest capture highlighted, and `+N` for the side
+  ahead in material; from `captures()` in chess-core, follows the flip), the **eval graph** (`EvalGraph`: White's win % across the main
   line, with marks at inaccuracies, mistakes, blunders and key moments; click or drag to jump),
   a one-line strip with the engine's best line, and navigation buttons. Once the game is
   analyzed the board is **playable**: drag a piece, or click it and then a square (side to move
@@ -32,7 +34,8 @@ Layout (`.workspace` grid): **board | tabbed panel**. Under 920 px they stack.
     with a link into that line, an only-move note, a "Back to game" link inside branches (plus
     "Remove" on your what-ifs), then
     `EngineLines` (saved analysis, or live browser analysis with a "live" toggle), then
-    `NodeChat`: suggested questions, the thread with streamed replies and a chip per tool call
+    `NodeChat`: chats from earlier moves on this line (collapsible, with "Go to move"), then
+    suggested questions, the thread with streamed replies and a chip per tool call
     (a line the coach added has a "Show on board" chip), and the question box
     ([node chat](chat.md)).
   - **Tree:** `GameTreeView`, below.
@@ -42,6 +45,20 @@ Layout (`.workspace` grid): **board | tabbed panel**. Under 920 px they stack.
   `Explorer` and shared, so the tab and full-screen trees always match.
 - **Header:** players, result, and per-player counts of inaccuracies/mistakes/blunders; a
   progress bar while analyzing.
+
+**Line previews.** Move lines in the coach's answers ("12…Nh7 13. Qxd8 Rxd8") are links, once
+the answer has finished streaming. `findMoveRuns` (chess-core `notation.ts`) finds numbered move
+runs in the text; `lineResolver` (`web/src/lib/chatLines.ts`) places each one where its move
+number and side fit and every move is legal, trying lines earlier in the same answer first
+(latest first, so "after 12. dxe5 Nh7, 13. Qxd8…" continues it), then the chat's position, the
+moves leading to it (nearest first), and the moves after it. Lines that don't fit stay text.
+Clicking one opens a **preview** on the board: the board gets an accent outline, the eval bar,
+engine lines, best line and material rows follow the previewed position, and ← → (and the
+navigation buttons) step through the line instead of the tree; Esc or Exit leaves it. The bar
+under the board lists the moves (click to jump; moves from an earlier line are greyed) and has
+**Add to tree** (`branches.addMoves`, reusing existing moves, then selects the move on the board)
+or **Go to it in the tree** when every move already exists. Selecting another position ends the
+preview.
 
 **Chat marks.** `games.tree` also returns `chatted`, the nodes with a chat thread (a thread is
 created by the first question). Those moves get a speech bubble (`ChatMark`) in the tree (stops,

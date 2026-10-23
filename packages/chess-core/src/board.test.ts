@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { boardFacts } from './board';
+import { boardFacts, captures } from './board';
 
 describe('boardFacts', () => {
   it('reads pieces, material and pawn structure off a king-and-pawn ending', () => {
@@ -22,5 +22,23 @@ describe('boardFacts', () => {
     const facts = boardFacts('rnb1kbnr/pppp1ppp/8/4p3/6Pq/5P2/PPPPP2P/RNBQKBNR w KQkq - 1 3');
     expect(facts.inCheck).toBe(true);
     expect(facts.material).toEqual({ w: 39, b: 39 });
+  });
+});
+
+describe('captures', () => {
+  it('is empty at the start', () => {
+    expect(captures('rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1')).toEqual({ by: { w: [], b: [] }, lead: 0 });
+  });
+
+  it('credits each side with what it took, most valuable first', () => {
+    // White is missing a knight and a pawn (-4); Black a rook, a bishop, a knight and two pawns (-13).
+    const fen = 'r1bqk1n1/pppppp2/8/8/8/8/PPPPPPP1/R1BQKBNR w Qq - 0 1';
+    expect(captures(fen)).toEqual({ by: { w: ['r', 'b', 'n', 'p', 'p'], b: ['n', 'p'] }, lead: 9 });
+  });
+
+  it('counts a promoted queen in the lead but not as a capture', () => {
+    // White has two queens, one rook and seven pawns (42); Black is missing a knight (36).
+    const fen = 'r1bqkbnr/pppppppp/8/8/8/8/PPPPPPP1/RNBQKBNQ w Qkq - 0 1';
+    expect(captures(fen)).toEqual({ by: { w: ['n'], b: ['r', 'p'] }, lead: 6 });
   });
 });

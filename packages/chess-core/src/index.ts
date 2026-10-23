@@ -6,3 +6,4 @@ export * from './position';
 export * from './samples';
 export * from './score';
 export * from './uci';
+export * from './notation';

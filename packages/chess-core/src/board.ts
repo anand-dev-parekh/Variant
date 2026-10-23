@@ -65,3 +65,29 @@ function pawnFacts(own: Square[], enemy: Square[], side: Color): PawnFacts {
   for (let f = 0; f < 8; f++) if (perFile.has(f) && !perFile.has(f - 1)) islands++;
   return { doubled, isolated: isolated.sort(), passed: passed.sort(), islands };
 }
+
+/** What each side has captured, and White's material lead in pawn units (negative: Black leads). */
+export type Captures = { by: Record<Color, PieceSymbol[]>; lead: number };
+
+const START_COUNT: Record<PieceSymbol, number> = { k: 1, q: 1, r: 2, b: 2, n: 2, p: 8 };
+const CAPTURE_ORDER: PieceSymbol[] = ['q', 'r', 'b', 'n', 'p'];
+
+/**
+ * Pieces missing from each side's starting set, credited to the other side (`by.w` holds Black
+ * pieces White took), most valuable first. Counted from the board alone, so a promoted pawn shows
+ * as taken and an extra queen as nothing; `lead` still counts the real material.
+ */
+export function captures(fen: string): Captures {
+  const count: Record<Color, Record<PieceSymbol, number>> = {
+    w: { k: 0, q: 0, r: 0, b: 0, n: 0, p: 0 },
+    b: { k: 0, q: 0, r: 0, b: 0, n: 0, p: 0 },
+  };
+  for (const ch of fen.split(' ')[0]!) {
+    const type = ch.toLowerCase() as PieceSymbol;
+    if (type in VALUE) count[ch === type ? 'b' : 'w'][type]++;
+  }
+  const missing = (side: Color) =>
+    CAPTURE_ORDER.flatMap((type) => Array<PieceSymbol>(Math.max(0, START_COUNT[type] - count[side][type])).fill(type));
+  const material = (side: Color) => CAPTURE_ORDER.reduce((sum, type) => sum + VALUE[type] * count[side][type], 0);
+  return { by: { w: missing('b'), b: missing('w') }, lead: material('w') - material('b') };
+}

@@ -53,7 +53,13 @@ export const evaluate = createTool({
     } catch {
       return { error: `Not a valid FEN: ${fen}` };
     }
-    const analysis = await analyzeCached(ctx, fen);
+    let analysis;
+    try {
+      analysis = await analyzeCached(ctx, fen);
+    } catch (err) {
+      console.error('evaluate: engine unavailable', err);
+      return { error: 'The engine is unavailable right now, so this position could not be evaluated.' };
+    }
 
     if (analysis.terminal) {
       const score = terminalScore(fen, analysis.terminal);

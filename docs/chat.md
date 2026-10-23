@@ -15,6 +15,21 @@ in it should come from the fact sheet or from a tool call: the LLM explains, Sto
 4. The browser reads the thread with `useUIMessages(api.chat.messages, …, { stream: true })`, so the
    reply appears as it's written. Tool calls show as small chips above the reply.
 
+**Earlier chats on the line.** Each move keeps its own thread, but a chat isn't forgotten when
+you move on. `chat.earlierThreads` walks up from the node and returns the threads at its
+ancestors (oldest first, labeled by move). Only the path counts: a what-if sees the game's chats
+up to where it split off, never chats on other branches.
+- `NodeChat` shows them above the current chat, read-only and collapsible (the nearest one open),
+  each with "Go to move".
+- `chat.respond` adds them to the system prompt after the fact sheet, under "Earlier conversation
+  on this line, at other positions": per move, each question and the final answer (tool steps and
+  the model's working are left out). Only the last `EARLIER_EXCHANGES` (8) exchanges are kept and
+  answers are cut at 1,200 characters. A rule tells the model to use them for the player's train of
+  thought but to re-check any claim against the current fact sheet and tools.
+
+Move lines in finished answers are clickable and preview on the board
+(see "Line previews" in [frontend.md](frontend.md)).
+
 Threads, messages and stream deltas live in the Convex Agent component's own tables
 (`@convex-dev/agent`, mounted in `convex.config.ts`), not in ours.
 
@@ -63,7 +78,7 @@ analyses and game analyses are interchangeable.
 tactic, threat or evaluation only if the fact sheet or a tool shows it; check any move not in the
 fact sheet with `play_moves`, then `evaluate`; never read the board from the FEN; say so when the
 tools can't answer. It also asks the model to call its tools first and then write only the final
-answer. Temperature 0.3, at most 6 steps per reply, the last 20 messages of the thread as context.
+answer. Temperature 0.3, at most 6 steps per reply, the last 20 messages of the thread as context, plus the earlier chats on the line (above).
 
 ## Model
 
