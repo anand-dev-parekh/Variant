@@ -1,7 +1,8 @@
 # Data model
 
-Defined in `web/convex/schema.ts`: `games`, `nodes`, `analyses`, and `threads` for node chat.
-Chat messages themselves live in the Convex Agent component's tables.
+Defined in `web/convex/schema.ts`: `games`, `nodes`, `analyses`, `threads` for node chat, and
+`profiles` for chess site usernames, plus Convex Auth's tables (`users`, `authSessions`, …; see
+[accounts](accounts.md)). Chat messages themselves live in the Convex Agent component's tables.
 
 ## `games`
 
@@ -9,10 +10,16 @@ One imported game.
 
 | Field | Notes |
 | --- | --- |
-| `pgn` | The PGN as imported. Omitted from `games.list` to keep the landing page light |
+| `ownerId?` | The user who imported it. Optional only for games from before accounts (`games:claimUnowned` assigns those) |
+| `shareToken?` | Set while the game is shared by link; cleared to revoke ([accounts](accounts.md)) |
+| `origin?` | `{ site: lichess \| chesscom, id }` for games imported from a chess site, to avoid importing one twice |
+| `pgn` | The PGN as imported. Omitted from `games.list` and from `games.tree` |
 | `white`, `black`, `result`, `event?`, `date?` | From PGN headers (`parseGame`), with "White"/"Black"/"*" fallbacks |
 | `status` | `analyzing` → `ready`, or `failed` with `error` |
 | `depth`, `multiPv` | Engine settings used for this game (`ANALYSIS_DEPTH = 18`, `ANALYSIS_MULTIPV = 3` in `games.ts`) |
+
+Indexes: `by_ownerId` (your games), `by_shareToken`, `by_ownerId_and_origin` (`origin.site`,
+`origin.id`).
 
 ## `nodes`
 
@@ -77,7 +84,18 @@ The chat thread for one node, created on its first question ([node chat](chat.md
 | `threadId` | The Agent component's thread; its messages and stream deltas are stored there |
 | `gameId?` | The node's game, so `games.tree` can list chatted moves in one query. Optional only for threads made before it was added (`chat:backfillThreadGames` filled those in) |
 
-Indexes: `by_nodeId`, `by_gameId`.
+Indexes: `by_nodeId`, `by_gameId`, `by_threadId` (to check access when reading a thread's messages).
+
+## `profiles`
+
+A user's usernames on chess sites, for importing their recent games ([accounts](accounts.md)).
+
+| Field | Notes |
+| --- | --- |
+| `userId` | The Convex Auth user |
+| `lichess?`, `chesscom?` | Usernames (letters, digits, `_`, `-`) |
+
+Index: `by_userId`.
 
 ## Not stored
 

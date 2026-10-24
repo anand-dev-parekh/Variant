@@ -9,8 +9,9 @@ Hash routing in `App.tsx`, no router library:
 
 | Hash | Page |
 | --- | --- |
-| `#/` (anything else) | `pages/ImportPage.tsx`: landing page with the import card, recent games, how it works |
-| `#/game/<id>` | `pages/GameView.tsx`: the explorer |
+| `#/` (anything else) | `pages/ImportPage.tsx`: signed out, the landing page with "Continue with Google / GitHub"; signed in, the import card, **Import from Lichess or Chess.com** (`SiteImport`), and your games |
+| `#/game/<id>` | `pages/GameView.tsx`: the explorer, for the game's owner |
+| `#/game/<id>/s/<token>` | The same explorer, read-only, for anyone with a share link (signed in or not). See [accounts](accounts.md) |
 
 ## The explorer (`GameView`)
 
@@ -51,7 +52,9 @@ the answer has finished streaming. `findMoveRuns` (chess-core `notation.ts`) fin
 runs in the text; `lineResolver` (`web/src/lib/chatLines.ts`) places each one where its move
 number and side fit and every move is legal, trying lines earlier in the same answer first
 (latest first, so "after 12. dxe5 Nh7, 13. Qxd8…" continues it), then the chat's position, the
-moves leading to it (nearest first), and the moves after it. Lines that don't fit stay text.
+moves leading to it (nearest first), and the moves after it. A Black move written without a
+number ("…a5") continues the line just before it in the answer, or the chat's position if it's
+the first. The coach's prompt asks for full numbered lines; lines that don't fit stay text.
 Clicking one opens a **preview** on the board: the board gets an accent outline, the eval bar,
 engine lines, best line and material rows follow the previewed position, and ← → (and the
 navigation buttons) step through the line instead of the tree; Esc or Exit leaves it. The bar
@@ -127,6 +130,10 @@ follows Railway (deep violet-black). One violet accent.
 Fonts (Google Fonts, `index.html`): IBM Plex Serif for headings, Inter for UI, IBM Plex Mono for
 PGN and numbers.
 
-Shared pieces: `TopBar` (sticky header; `narrow` aligns it with the 1200 px landing frame),
+**Owner vs viewer.** `games.tree` returns the caller's `role`. Owners get the Share button in
+the game header. Viewers get a "Shared by … · view only" banner; board moves, Remove, Delete,
+the question box and "Add to tree" are off, and the share token is passed to every query.
+
+Shared pieces: `TopBar` (sticky header, with `UserMenu`: avatar, name, Sign out; `narrow` aligns it with the 1200 px landing frame),
 `TreePreview` (the landing page's picture of the tree: the Opera Game drawn with the real tree's
 metro classes and real positions, with hand-placed, illustrative verdicts).

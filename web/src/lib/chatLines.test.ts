@@ -54,6 +54,20 @@ describe('lineResolver', () => {
     ]);
   });
 
+  it('continues the line just written with an unnumbered Black move', () => {
+    expect(resolve('m4', 'After 3. Bb5, …a6 4. Ba4 is the main line.')).toEqual([
+      'After ',
+      '[3. Bb5 @ m4: Bb5 (from 0)]',
+      ', ',
+      '[…a6 4. Ba4 @ m4: Bb5 a6 Ba4 (from 1)]',
+      ' is the main line.',
+    ]);
+  });
+
+  it('places an unnumbered Black move at the chat position when nothing came before', () => {
+    expect(resolve('m5', 'Here …Nf6 is natural.')).toEqual(['Here ', '[…Nf6 @ m5: Nf6 (from 0)]', ' is natural.']);
+  });
+
   it('leaves illegal lines as text', () => {
     expect(resolve('m4', 'Not 3. Qxf7 here.')).toEqual(['Not 3. Qxf7 here.']);
   });

@@ -33,4 +33,11 @@ describe('findMoveRuns', () => {
   it('ignores numbers that are not move numbers and moves without a number', () => {
     expect(runs('+0.90 after Nh7; a 1.5 pawn edge; the e5 pawn; step 3. then')).toEqual([]);
   });
+
+  it('finds unnumbered Black moves written with an ellipsis, numbering what follows', () => {
+    expect(runs('then …a5 15. Rad1 Kh8, or ...Qh6')).toEqual([
+      { number: null, side: 'b', san: ['a5', 'Rad1', 'Kh8'], text: '…a5 15. Rad1 Kh8' },
+      { number: null, side: 'b', san: ['Qh6'], text: '...Qh6' },
+    ]);
+  });
 });

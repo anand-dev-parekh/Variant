@@ -3,7 +3,10 @@ import type { Id } from '../convex/_generated/dataModel';
 import { GameView } from './pages/GameView';
 import { ImportPage } from './pages/ImportPage';
 
-/** Hash routes: `#/` imports a game, `#/game/<id>` explores one. */
+/**
+ * Hash routes: `#/` is the landing page (signed out) or your games (signed in), `#/game/<id>`
+ * explores one of yours, `#/game/<id>/s/<token>` opens a shared game read-only.
+ */
 export function App() {
   const [hash, setHash] = useState(window.location.hash);
 
@@ -13,6 +16,6 @@ export function App() {
     return () => window.removeEventListener('hashchange', onChange);
   }, []);
 
-  const gameId = hash.match(/^#\/game\/(\w+)/)?.[1];
-  return gameId ? <GameView key={gameId} gameId={gameId as Id<'games'>} /> : <ImportPage />;
+  const [, gameId, share] = hash.match(/^#\/game\/(\w+)(?:\/s\/(\w+))?/) ?? [];
+  return gameId ? <GameView key={gameId} gameId={gameId as Id<'games'>} share={share} /> : <ImportPage />;
 }

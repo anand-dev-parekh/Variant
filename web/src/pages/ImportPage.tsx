@@ -1,6 +1,8 @@
-import { useQuery } from 'convex/react';
+import { AuthLoading, Authenticated, Unauthenticated, useConvexAuth, useQuery } from 'convex/react';
 import { api } from '../../convex/_generated/api';
+import { SignInButtons } from '../components/Account';
 import { ImportPanel } from '../components/ImportPanel';
+import { SiteImport } from '../components/SiteImport';
 import { TopBar } from '../components/TopBar';
 import { TreePreview } from '../components/TreePreview';
 
@@ -19,8 +21,10 @@ const STEPS = [
   },
 ];
 
+/** The landing page when signed out; your games and the import box when signed in. */
 export function ImportPage() {
-  const games = useQuery(api.games.list);
+  const { isAuthenticated } = useConvexAuth();
+  const games = useQuery(api.games.list, isAuthenticated ? {} : 'skip');
 
   return (
     <>
@@ -42,15 +46,33 @@ export function ImportPage() {
               Import a finished game. Variant finds the moments that decided it and lets you walk every line that could
               have happened instead.
             </p>
-            <ImportPanel onCreated={(id) => (window.location.hash = `#/game/${id}`)} />
+            <AuthLoading>
+              <p className="muted">Loading…</p>
+            </AuthLoading>
+            <Unauthenticated>
+              <SignInButtons />
+              <p className="sign-in-note muted">Sign in to import games. Your games stay private unless you share them.</p>
+            </Unauthenticated>
+            <Authenticated>
+              <ImportPanel onCreated={(id) => (window.location.hash = `#/game/${id}`)} />
+            </Authenticated>
           </div>
           <TreePreview />
         </section>
 
+        <Authenticated>
+          <section className="band">
+            <h2 className="band-title">
+              Import from <span className="muted-serif">Lichess or Chess.com</span>
+            </h2>
+            <SiteImport />
+          </section>
+        </Authenticated>
+
         {games && games.length > 0 && (
           <section className="band">
             <h2 className="band-title">
-              Recent <span className="muted-serif">games</span>
+              Your <span className="muted-serif">games</span>
             </h2>
             <ul className="game-grid">
               {games.map((g) => (

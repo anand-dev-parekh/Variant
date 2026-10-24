@@ -19,8 +19,9 @@ type Start = { baseId: Id<'nodes'>; baseFen: string; prefix: LineStep[] };
  * Turns the coach's text into plain text and playable lines, for a chat at `context`. A line is
  * placed where its move number and side fit and every move is legal, trying in turn: lines
  * earlier in the same answer (latest first), the chat's own position, the moves leading to it
- * (nearest first), then the moves that follow it. Call it on an answer's pieces in order, so
- * later lines can continue earlier ones.
+ * (nearest first), then the moves that follow it. A line with no number ("…a5") continues the
+ * line just before it in the answer. Call it on an answer's pieces in order, so later lines can
+ * continue earlier ones.
  */
 export function lineResolver(tree: GameTree, context: TreeNode) {
   const path: TreeNode[] = [];
@@ -33,9 +34,12 @@ export function lineResolver(tree: GameTree, context: TreeNode) {
   const fromAnswer: Start[] = [];
 
   const place = (run: MoveRun): LineLink | null => {
-    for (const start of [...fromAnswer, ...fixed]) {
+    // An unnumbered "…a5" continues the line just written, or the chat's position if none yet.
+    const starts = run.number === null ? [fromAnswer[0] ?? fixed[0]!] : [...fromAnswer, ...fixed];
+    for (const start of starts) {
       const fen = start.prefix.at(-1)?.fen ?? start.baseFen;
-      if (sideToMove(fen) !== run.side || Number(fen.split(' ')[5]) !== run.number) continue;
+      if (sideToMove(fen) !== run.side) continue;
+      if (run.number !== null && Number(fen.split(' ')[5]) !== run.number) continue;
       const played = playSanLine(fen, run.san);
       if (played.illegal) continue;
       const steps = [...start.prefix, ...played.moves];

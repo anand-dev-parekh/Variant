@@ -13,6 +13,14 @@ const app = defineApp({
     NVIDIA_API_KEY: v.optional(v.string()),
     LLM_MODEL: v.optional(v.string()),
     LLM_BASE_URL: v.optional(v.string()),
+    /** Convex Auth (docs/accounts.md): where OAuth redirects back to, the token signing keys, and the OAuth apps. */
+    SITE_URL: v.optional(v.string()),
+    JWT_PRIVATE_KEY: v.optional(v.string()),
+    JWKS: v.optional(v.string()),
+    AUTH_GITHUB_ID: v.optional(v.string()),
+    AUTH_GITHUB_SECRET: v.optional(v.string()),
+    AUTH_GOOGLE_ID: v.optional(v.string()),
+    AUTH_GOOGLE_SECRET: v.optional(v.string()),
   },
 });
 

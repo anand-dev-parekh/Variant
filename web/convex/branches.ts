@@ -4,6 +4,7 @@ import { internal } from './_generated/api';
 import type { Doc, Id } from './_generated/dataModel';
 import { internalAction, internalMutation, internalQuery, mutation, type MutationCtx } from './_generated/server';
 import { MAX_NODES } from './games';
+import { ownedGame } from './lib/access';
 import { analyzeCached, scoreOfAnalysis } from './lib/cachedEngine';
 import { vClassification } from './schema';
 
@@ -16,10 +17,15 @@ const MAX_LINE = 20;
  */
 export const addMoves = mutation({
   args: { parentId: v.id('nodes'), moves: v.array(v.string()) },
-  handler: (ctx, args) => addLine(ctx, args),
+  handler: async (ctx, args) => {
+    const parent = await ctx.db.get('nodes', args.parentId);
+    if (!parent) throw new ConvexError('That position no longer exists.');
+    await ownedGame(ctx, parent.gameId);
+    return addLine(ctx, args);
+  },
 });
 
-/** The same for the chat's add_branch tool. */
+/** The same for the chat's add_branch tool, which only runs in the owner's own chat. */
 export const addMovesInternal = internalMutation({
   args: { parentId: v.id('nodes'), moves: v.array(v.string()) },
   handler: (ctx, args) => addLine(ctx, args),
@@ -133,6 +139,7 @@ export const removeWhatIf = mutation({
   handler: async (ctx, { nodeId }) => {
     const node = await ctx.db.get('nodes', nodeId);
     if (!node) return null;
+    await ownedGame(ctx, node.gameId);
     if (node.source !== 'user') throw new ConvexError('Only your own what-ifs can be removed.');
 
     const stack: Id<'nodes'>[] = [nodeId];

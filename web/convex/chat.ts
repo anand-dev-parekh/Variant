@@ -11,9 +11,10 @@ import {
 import { boardFacts, renderFactSheet, sideToMove, type Classification, type FactSheet, type Score } from '@variant/chess-core';
 import { paginationOptsValidator } from 'convex/server';
 import { ConvexError, v } from 'convex/values';
-import { api, components, internal } from './_generated/api';
+import { components, internal } from './_generated/api';
 import type { Doc, Id } from './_generated/dataModel';
 import { internalAction, internalMutation, internalQuery, mutation, query, type ActionCtx, type QueryCtx } from './_generated/server';
+import { ownedGame, readableGame } from './lib/access';
 import { scoreOfAnalysis } from './lib/cachedEngine';
 import { chatTools } from './lib/chatTools';
 import { chatModelConfig } from './lib/llm';
@@ -51,14 +52,17 @@ Ground rules:
 
 Call the tools you need first, without writing anything in between. Then write only the final answer for the player: no notes to yourself, no drafts.
 
-Style: plain language for a club player, short paragraphs, standard algebraic notation with move numbers.
+Style: plain language for a club player, short paragraphs, standard algebraic notation.
+- Write every line as a full sequence with move numbers, with no moves skipped: "14. Qd1 a5 15. Rad1 Kh8", or "14…a5 15. Rad1" when it starts with Black. The player can click lines written this way to see them on the board.
+- Don't write moves on their own without a number, like "…a5", and don't list one side's ideas as "…Kh8, …Qh6". If you mean a plan rather than an exact line, say it in words ("Black wants to tuck the king on h8 and bring the queen to h6"), or give it as a line you checked.
 Scores are from White's point of view (+ is good for White); when it helps, say who is better instead.
 Keep answers under about 150 words unless asked for more.`;
 
-/** The node's thread id, or null before its first question. */
+/** The node's thread id, or null before its first question (or without access to the game). */
 export const threadFor = query({
-  args: { nodeId: v.id('nodes') },
-  handler: async (ctx, { nodeId }) => {
+  args: { nodeId: v.id('nodes'), share: v.optional(v.string()) },
+  handler: async (ctx, { nodeId, share }) => {
+    if (!(await canReadNode(ctx, nodeId, share))) return null;
     const row = await threadRow(ctx, nodeId);
     return row?.threadId ?? null;
   },
@@ -68,14 +72,33 @@ type EarlierThread = { nodeId: Id<'nodes'>; threadId: string; label: string };
 
 /** Chats at the moves leading to a node (not the node's own), oldest first. */
 export const earlierThreads = query({
+  args: { nodeId: v.id('nodes'), share: v.optional(v.string()) },
+  handler: async (ctx, { nodeId, share }) =>
+    (await canReadNode(ctx, nodeId, share)) ? earlierThreadsOf(ctx, nodeId) : [],
+});
+
+/** The same for the reply action, which runs without a signed-in user. */
+export const earlierThreadsInternal = internalQuery({
   args: { nodeId: v.id('nodes') },
   handler: (ctx, { nodeId }) => earlierThreadsOf(ctx, nodeId),
 });
 
 /** A thread's messages, plus live deltas of any reply still streaming (for useUIMessages). */
 export const messages = query({
-  args: { threadId: v.string(), paginationOpts: paginationOptsValidator, streamArgs: vStreamArgs },
-  handler: async (ctx, { threadId, paginationOpts, streamArgs }) => {
+  args: {
+    threadId: v.string(),
+    share: v.optional(v.string()),
+    paginationOpts: paginationOptsValidator,
+    streamArgs: vStreamArgs,
+  },
+  handler: async (ctx, { threadId, share, paginationOpts, streamArgs }) => {
+    const row = await ctx.db
+      .query('threads')
+      .withIndex('by_threadId', (q) => q.eq('threadId', threadId))
+      .first();
+    if (!row || !(await canReadNode(ctx, row.nodeId, share))) {
+      return { page: [], isDone: true, continueCursor: '', streams: { kind: 'list' as const, messages: [] } };
+    }
     const paginated = await listUIMessages(ctx, components.agent, { threadId, paginationOpts });
     const streams = await syncStreams(ctx, components.agent, { threadId, streamArgs });
     return { ...paginated, streams };
@@ -92,8 +115,8 @@ export const send = mutation({
 
     const node = await ctx.db.get('nodes', nodeId);
     if (!node) throw new ConvexError('That position no longer exists.');
-    const game = await ctx.db.get('games', node.gameId);
-    if (game?.status !== 'ready') throw new ConvexError('Chat opens once the game is analyzed.');
+    const game = await ownedGame(ctx, node.gameId);
+    if (game.status !== 'ready') throw new ConvexError('Chat opens once the game is analyzed.');
 
     let threadId = (await threadRow(ctx, nodeId))?.threadId;
     if (!threadId) {
@@ -113,7 +136,7 @@ export const respond = internalAction({
   handler: async (ctx, { nodeId, threadId, promptMessageId }) => {
     const sheet: FactSheet | null = await ctx.runQuery(internal.chat.factSheet, { nodeId });
     if (!sheet) return;
-    const threads: EarlierThread[] = await ctx.runQuery(api.chat.earlierThreads, { nodeId });
+    const threads: EarlierThread[] = await ctx.runQuery(internal.chat.earlierThreadsInternal, { nodeId });
     const earlier = await earlierConversation(ctx, threads);
     const agent = new Agent(components.agent, {
       name: 'coach',
@@ -337,6 +360,12 @@ function cachedAnalysisFor(ctx: QueryCtx, positionKey: string) {
     .query('analyses')
     .withIndex('by_positionKey', (q) => q.eq('positionKey', positionKey))
     .first();
+}
+
+/** Whether the caller may read this node's game: its owner, or with the game's share token. */
+async function canReadNode(ctx: QueryCtx, nodeId: Id<'nodes'>, share?: string) {
+  const node = await ctx.db.get('nodes', nodeId);
+  return node !== null && (await readableGame(ctx, node.gameId, share)) !== null;
 }
 
 function threadRow(ctx: QueryCtx, nodeId: Id<'nodes'>) {

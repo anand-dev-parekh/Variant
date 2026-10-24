@@ -3,6 +3,15 @@
 Why things are the way they are. Newest first. Add an entry when you make a choice someone might
 later want to undo.
 
+## Accounts with Convex Auth; shared links are read-only and include chats
+
+Sign-in runs inside the Convex deployment (Convex Auth with Google and GitHub) rather than a
+separate service like Clerk, so there's one backend and no extra account. Games belong to the
+importer. A share link shows everything, chats included, but changes nothing; a "save a copy"
+for visitors can come later. The analysis cache stays global, because an engine evaluation
+doesn't depend on who asked. Chess sites are connected by username only, reading public games,
+so there's no Lichess or Chess.com OAuth to set up.
+
 ## What-ifs: judged like game moves, never branched; promotion is always a queen
 
 A move the player tries gets the same verdict as a game move, so the board and tree read the same

@@ -1,3 +1,4 @@
+import { authTables } from '@convex-dev/auth/server';
 import { defineSchema, defineTable } from 'convex/server';
 import { v } from 'convex/values';
 
@@ -18,8 +19,19 @@ export const vClassification = v.union(
   v.literal('blunder'),
 );
 
+export const vSite = v.union(v.literal('lichess'), v.literal('chesscom'));
+
 export default defineSchema({
+  /** Users, sessions and OAuth accounts (Convex Auth). */
+  ...authTables,
+
   games: defineTable({
+    /** The user who imported it. Optional only for games imported before accounts existed. */
+    ownerId: v.optional(v.id('users')),
+    /** Anyone with this token can view the game read-only; cleared to revoke the link. */
+    shareToken: v.optional(v.string()),
+    /** Where an imported game came from, to avoid importing it twice. */
+    origin: v.optional(v.object({ site: vSite, id: v.string() })),
     pgn: v.string(),
     white: v.string(),
     black: v.string(),
@@ -31,7 +43,10 @@ export default defineSchema({
     /** Engine settings for this game's analysis pass. */
     depth: v.number(),
     multiPv: v.number(),
-  }),
+  })
+    .index('by_ownerId', ['ownerId'])
+    .index('by_shareToken', ['shareToken'])
+    .index('by_ownerId_and_origin', ['ownerId', 'origin.site', 'origin.id']),
 
   /** One position in a game's tree. The edge from the parent (the move) lives on the child. */
   nodes: defineTable({
@@ -77,5 +92,13 @@ export default defineSchema({
     gameId: v.optional(v.id('games')),
   })
     .index('by_nodeId', ['nodeId'])
-    .index('by_gameId', ['gameId']),
+    .index('by_gameId', ['gameId'])
+    .index('by_threadId', ['threadId']),
+
+  /** A user's chess site usernames, for importing their recent games. */
+  profiles: defineTable({
+    userId: v.id('users'),
+    lichess: v.optional(v.string()),
+    chesscom: v.optional(v.string()),
+  }).index('by_userId', ['userId']),
 });

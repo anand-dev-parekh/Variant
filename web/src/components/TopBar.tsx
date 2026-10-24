@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react';
+import { UserMenu } from './Account';
 
-/** Site header: wordmark on the left, page actions on the right. */
+/** Site header: wordmark on the left, page actions and the account on the right. */
 export function TopBar({ children, narrow }: { children?: ReactNode; narrow?: boolean }) {
   return (
     <header className={`topbar ${narrow ? 'narrow' : ''}`}>
@@ -11,7 +12,10 @@ export function TopBar({ children, narrow }: { children?: ReactNode; narrow?: bo
           </span>
           Variant
         </a>
-        <nav className="topbar-actions">{children}</nav>
+        <nav className="topbar-actions">
+          {children}
+          <UserMenu />
+        </nav>
       </div>
     </header>
   );

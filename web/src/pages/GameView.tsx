@@ -39,24 +39,27 @@ type Tab = (typeof TABS)[number];
 const TAB_LABEL: Record<Tab, string> = { position: 'Position', tree: 'Tree', moves: 'Moves' };
 const TAB_KEY = 'variant:tab';
 
-export function GameView({ gameId }: { gameId: Id<'games'> }) {
-  const data = useQuery(api.games.tree, { gameId });
+/** A game you own, or one shared with you (`share` is the link's token): view only. */
+export function GameView({ gameId, share }: { gameId: Id<'games'>; share?: string }) {
+  const data = useQuery(api.games.tree, { gameId, share });
   const tree = useMemo(() => (data ? new GameTree(data.nodes) : null), [data?.nodes]);
 
   if (data === undefined) return <p className="muted center">Loading…</p>;
   if (data === null || !tree)
     return (
       <p className="center">
-        Game not found. <a href="#/">Import a game</a>
+        This game doesn't exist, or it's private. <a href="#/">Go to Variant</a>
       </p>
     );
-  return <Explorer data={data} tree={tree} />;
+  return <Explorer data={data} tree={tree} share={share} />;
 }
 
 type TreeData = NonNullable<ReturnType<typeof useQuery<typeof api.games.tree>>>;
 
-function Explorer({ data, tree }: { data: TreeData; tree: GameTree }) {
+function Explorer({ data, tree, share }: { data: TreeData; tree: GameTree; share?: string }) {
   const { game, analyses, progress } = data;
+  // Viewers of a shared game can look at everything but change nothing.
+  const isOwner = data.role === 'owner';
   const chatted = useMemo(() => new Set(data.chatted), [data.chatted]);
   const [selectedId, setSelectedId] = useState<Id<'nodes'>>(tree.root._id);
   const [orientation, setOrientation] = useState<'white' | 'black'>('white');
@@ -69,6 +72,7 @@ function Explorer({ data, tree }: { data: TreeData; tree: GameTree }) {
 
   const node: TreeNode = tree.byId.get(selectedId) ?? tree.root;
   const ready = game.status === 'ready';
+  const canEdit = ready && isOwner;
   const addMoves = useMutation(api.branches.addMoves);
   // A move being saved shows on the board right away; click-to-move remembers the picked square.
   const [pending, setPending] = useState<{ from: Id<'nodes'>; fen: string } | null>(null);
@@ -133,7 +137,7 @@ function Explorer({ data, tree }: { data: TreeData; tree: GameTree }) {
 
   /** Plays a move from the selected position: follows an existing branch or adds a what-if. */
   const tryMove = (from: string, to: string): boolean => {
-    if (!ready || pending) return false;
+    if (!canEdit || pending) return false;
     const move = moveFromSquares(node.fen, from, to);
     if (!move) return false;
     setPicked(null);
@@ -156,7 +160,7 @@ function Explorer({ data, tree }: { data: TreeData; tree: GameTree }) {
   const deleteWhatIf = useCallback(
     (id: Id<'nodes'>) => {
       const target = tree.byId.get(id);
-      if (!target || target.source !== 'user') return;
+      if (!isOwner || !target || target.source !== 'user') return;
       const doomed = tree.subtreeOf(target);
       const later = doomed.length - 1;
       if (later > 0 && !window.confirm(`Delete ${moveLabel(target)} and the ${later} move${later > 1 ? 's' : ''} after it?`)) {
@@ -166,11 +170,11 @@ function Explorer({ data, tree }: { data: TreeData; tree: GameTree }) {
       if (doomed.some((n) => n._id === selectedId)) setSelectedId(target.parentId!);
       void removeWhatIf({ nodeId: id });
     },
-    [tree, selectedId, removeWhatIf],
+    [tree, selectedId, removeWhatIf, isOwner],
   );
 
   const clickSquare = (square: string, pieceType: string | undefined) => {
-    if (!ready || preview) return;
+    if (!canEdit || preview) return;
     if (picked && picked !== square && tryMove(picked, square)) return;
     setPicked(picked !== square && ownPiece(pieceType) ? square : null);
   };
@@ -232,7 +236,8 @@ function Explorer({ data, tree }: { data: TreeData; tree: GameTree }) {
         f: flip,
         t: () => setFullscreen((on) => !on),
         Escape: () => (preview ? setPreview(null) : setFullscreen(false)),
-        ...(!preview && {
+        ...(!preview &&
+          isOwner && {
           Delete: () => deleteWhatIf(node._id),
           Backspace: () => deleteWhatIf(node._id),
         }),
@@ -252,7 +257,7 @@ function Explorer({ data, tree }: { data: TreeData; tree: GameTree }) {
     analyses,
     selectedId: node._id,
     onSelect: setSelectedId,
-    onDelete: deleteWhatIf,
+    onDelete: isOwner ? deleteWhatIf : undefined,
     chatted,
     revealed,
     setRevealed,
@@ -263,7 +268,7 @@ function Explorer({ data, tree }: { data: TreeData; tree: GameTree }) {
     <>
       <TopBar>
         <a className="button ghost" href="#/">
-          New game
+          {isOwner ? 'New game' : 'Variant home'}
         </a>
       </TopBar>
       <main className="app">
@@ -276,6 +281,13 @@ function Explorer({ data, tree }: { data: TreeData; tree: GameTree }) {
             {[game.event, game.date?.replaceAll('.', '-')].filter(Boolean).join(' · ')}
           </span>
           {game.status === 'ready' && <Summary tree={tree} white={game.white} black={game.black} />}
+          {isOwner ? (
+            <ShareControl gameId={game._id} token={data.shareToken} />
+          ) : (
+            <p className="shared-banner">
+              Shared by {data.ownerName ?? 'another player'} · view only
+            </p>
+          )}
         </header>
 
         {game.status === 'analyzing' && (
@@ -308,8 +320,8 @@ function Explorer({ data, tree }: { data: TreeData; tree: GameTree }) {
                     id: 'main',
                     position: viewFen,
                     boardOrientation: orientation,
-                    allowDragging: ready && !preview,
-                    canDragPiece: ({ piece }) => ready && ownPiece(piece.pieceType),
+                    allowDragging: canEdit && !preview,
+                    canDragPiece: ({ piece }) => canEdit && ownPiece(piece.pieceType),
                     onPieceDrop: ({ sourceSquare, targetSquare }) =>
                       targetSquare ? tryMove(sourceSquare, targetSquare) : false,
                     onSquareClick: ({ piece, square }) => clickSquare(square, piece?.pieceType),
@@ -347,11 +359,11 @@ function Explorer({ data, tree }: { data: TreeData; tree: GameTree }) {
                 inTree={previewInTree}
                 saving={saving}
                 onStep={stepTo}
-                onKeep={keepPreview}
+                onKeep={isOwner ? keepPreview : undefined}
                 onExit={() => setPreview(null)}
               />
             )}
-            {ready && (!preview || moveError) && (
+            {canEdit && (!preview || moveError) && (
               <p className={`board-hint ${moveError ? 'error' : 'muted'}`}>
                 {moveError ?? 'Drag a piece (or click it, then a square) to try your own move.'}
               </p>
@@ -412,9 +424,11 @@ function Explorer({ data, tree }: { data: TreeData; tree: GameTree }) {
                   node={node}
                   analyses={analyses}
                   go={go}
-                  onDelete={deleteWhatIf}
+                  onDelete={isOwner ? deleteWhatIf : undefined}
                   onPreview={startPreview}
-                  previewing={preview && { inTree: previewInTree, saving, onKeep: keepPreview }}
+                  previewing={isOwner ? preview && { inTree: previewInTree, saving, onKeep: keepPreview } : null}
+                  share={share}
+                  readOnly={!isOwner}
                   ready={ready}
                   engine={
                     <EngineLines
@@ -474,7 +488,8 @@ function PreviewBar({
   inTree: boolean;
   saving: boolean;
   onStep: (index: number) => void;
-  onKeep: () => void;
+  /** Absent for viewers, who can't add lines. */
+  onKeep?: () => void;
   onExit: () => void;
 }) {
   return (
@@ -505,10 +520,64 @@ function PreviewBar({
         <button className="ghost" onClick={onExit} title="Back to the tree (Esc)">
           Exit
         </button>
-        <button className="primary" onClick={onKeep} disabled={saving}>
-          {inTree ? 'Go to it in the tree' : saving ? 'Adding…' : 'Add to tree'}
-        </button>
+        {onKeep && (
+          <button className="primary" onClick={onKeep} disabled={saving}>
+            {inTree ? 'Go to it in the tree' : saving ? 'Adding…' : 'Add to tree'}
+          </button>
+        )}
       </div>
+    </div>
+  );
+}
+
+/** The owner's share link: create it, copy it, or turn it off (which revokes the old link). */
+function ShareControl({ gameId, token }: { gameId: Id<'games'>; token: string | null }) {
+  const setSharing = useMutation(api.games.setSharing);
+  const [open, setOpen] = useState(false);
+  const [copied, setCopied] = useState(false);
+  const link = token && `${window.location.origin}${window.location.pathname}#/game/${gameId}/s/${token}`;
+
+  const copy = async () => {
+    if (!link) return;
+    try {
+      await navigator.clipboard.writeText(link);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    } catch {
+      // Clipboard can be blocked; the link is selectable in the box.
+    }
+  };
+
+  return (
+    <div className="share">
+      <button className="ghost" onClick={() => setOpen((o) => !o)} aria-expanded={open}>
+        {token ? 'Shared' : 'Share'}
+      </button>
+      {open && (
+        <div className="share-panel" role="dialog" aria-label="Share this game">
+          {link ? (
+            <>
+              <p>Anyone with this link can view the game, your what-ifs and your chats. They can't change anything.</p>
+              <div className="share-link">
+                <input readOnly value={link} onFocus={(e) => e.target.select()} aria-label="Share link" />
+                <button className="primary" onClick={() => void copy()}>
+                  {copied ? 'Copied' : 'Copy'}
+                </button>
+              </div>
+              <button className="link danger" onClick={() => void setSharing({ gameId, enabled: false })}>
+                Stop sharing (the link stops working)
+              </button>
+            </>
+          ) : (
+            <>
+              <p>Create a link to let someone view this game, your what-ifs and your chats, without changing them.</p>
+              <button className="primary" onClick={() => void setSharing({ gameId, enabled: true })}>
+                Create link
+              </button>
+            </>
+          )}
+        </div>
+      )}
     </div>
   );
 }
@@ -540,6 +609,8 @@ function PositionCard({
   onDelete,
   onPreview,
   previewing,
+  share,
+  readOnly,
   ready,
   engine,
 }: {
@@ -547,9 +618,12 @@ function PositionCard({
   node: TreeNode;
   analyses: Record<string, Doc<'analyses'>>;
   go: (n: TreeNode | undefined) => void;
-  onDelete: (id: Id<'nodes'>) => void;
+  /** Absent for viewers of a shared game. */
+  onDelete?: (id: Id<'nodes'>) => void;
   onPreview: (link: LineLink) => void;
   previewing: React.ComponentProps<typeof NodeChat>['previewing'];
+  share?: string;
+  readOnly: boolean;
   ready: boolean;
   engine: React.ReactNode;
 }) {
@@ -600,7 +674,7 @@ function PositionCard({
             <button className="branch-action" onClick={() => go(nearestMainline(tree, node))}>
               ← Back to game
             </button>
-            {node.source === 'user' && (
+            {node.source === 'user' && onDelete && (
               <button
                 className="branch-action danger"
                 onClick={() => onDelete(node._id)}
@@ -626,6 +700,8 @@ function PositionCard({
         tree={tree}
         onPreview={onPreview}
         previewing={previewing}
+        share={share}
+        readOnly={readOnly}
       />
     </div>
   );

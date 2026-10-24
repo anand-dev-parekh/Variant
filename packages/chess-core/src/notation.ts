@@ -1,17 +1,19 @@
 import type { Color } from './game';
 
 /**
- * A numbered run of moves found in prose, e.g. "12…Nh7 13. Qxd8 Rxd8 14. Nb5". `start`/`end`
- * index the text; `number` and `side` say where the first move belongs. The moves are only
- * shaped like SAN: whether they're legal depends on the position, which the caller picks.
+ * A run of moves found in prose, e.g. "12…Nh7 13. Qxd8 Rxd8 14. Nb5". `start`/`end` index the
+ * text; `number` and `side` say where the first move belongs. A run written "…a5", with no
+ * number, is Black's move continuing whatever line came before it: `number` is null. The moves
+ * are only shaped like SAN: whether they're legal depends on the position, which the caller picks.
  */
-export type MoveRun = { start: number; end: number; number: number; side: Color; san: string[] };
+export type MoveRun = { start: number; end: number; number: number | null; side: Color; san: string[] };
 
 const NUMBER = /(\d+)(\.\.\.|…|\.)\s*/y;
+const ELLIPSIS = /(?:\.\.\.|…)\s*/y;
 const SAN = /(?:O-O-O|O-O|[KQRBN][a-h]?[1-8]?x?[a-h][1-8]|[a-h](?:x[a-h])?[1-8](?:=?[QRBN])?)[+#]?[!?]{0,2}/y;
 const SPACE = /[ \t]+/y;
 
-/** Every numbered move run in `text`, in order. A run must start with a move number. */
+/** Every move run in `text`, in order. A run starts with a move number, or "…" for Black. */
 export function findMoveRuns(text: string): MoveRun[] {
   const runs: MoveRun[] = [];
   let i = 0;
@@ -28,12 +30,12 @@ export function findMoveRuns(text: string): MoveRun[] {
 function runAt(text: string, start: number): MoveRun | null {
   // A number glued to a word or another number ("a12.", "1.5") isn't a move number.
   if (start > 0 && /[\w.]/.test(text[start - 1]!)) return null;
-  const first = numberAt(text, start);
+  const first = numberAt(text, start) ?? ellipsisAt(text, start);
   if (!first) return null;
 
   const san: string[] = [];
   let side = first.side;
-  let number = first.number;
+  let number: number | null = first.number;
   let at = first.end;
   let end = start;
   for (;;) {
@@ -44,7 +46,7 @@ function runAt(text: string, start: number): MoveRun | null {
     if (side === 'w') side = 'b';
     else {
       side = 'w';
-      number++;
+      if (number !== null) number++;
     }
     // The next move follows a space, after a move number that fits the sequence when it's White's
     // turn (Black's may be numbered too, "13...Rxd8").
@@ -52,7 +54,9 @@ function runAt(text: string, start: number): MoveRun | null {
     if (gap === null) break;
     const next = numberAt(text, gap);
     if (next) {
-      if (next.number !== number || next.side !== side) break;
+      // After an unnumbered "…a5", the next White number sets the count.
+      if (next.side !== side || (number !== null && next.number !== number)) break;
+      number = next.number;
       at = next.end;
     } else if (side === 'w') break;
     else at = gap;
@@ -64,6 +68,11 @@ function numberAt(text: string, at: number) {
   NUMBER.lastIndex = at;
   const m = NUMBER.exec(text);
   return m ? { number: Number(m[1]), side: (m[2] === '.' ? 'w' : 'b') as Color, end: NUMBER.lastIndex } : null;
+}
+
+function ellipsisAt(text: string, at: number) {
+  ELLIPSIS.lastIndex = at;
+  return ELLIPSIS.exec(text) ? { number: null, side: 'b' as Color, end: ELLIPSIS.lastIndex } : null;
 }
 
 function sanAt(text: string, at: number) {

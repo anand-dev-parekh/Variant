@@ -39,6 +39,7 @@ Run `npx convex …` commands from `web/`.
 | --- | --- | --- |
 | Convex | `ENGINE_URL`, `ENGINE_TOKEN` | Engine service; required for analysis. Declared in `web/convex/convex.config.ts` |
 | Convex | `LLM_PROVIDER`, `ANTHROPIC_API_KEY`, `NVIDIA_API_KEY`, `LLM_MODEL`, `LLM_BASE_URL` | Node chat: provider, its key, model. See [node chat](chat.md) |
+| Convex | `SITE_URL`, `JWT_PRIVATE_KEY`, `JWKS`, `AUTH_GITHUB_ID`/`SECRET`, `AUTH_GOOGLE_ID`/`SECRET` | Sign-in. Setup steps (OAuth apps, keys) in [accounts](accounts.md) |
 | Engine service | `ENGINE_TOKEN`, `PORT`, `STOCKFISH_PATH`, `POOL_SIZE`, `HASH_MB` | See [engines](engines.md) |
 | Web (`web/.env.local`) | `VITE_CONVEX_URL` | Written by `convex dev` |
 

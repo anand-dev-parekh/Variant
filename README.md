@@ -32,6 +32,9 @@ No Convex account? `CONVEX_AGENT_MODE=anonymous npm run convex` runs a local bac
 Analysis needs the native engine service: set `ENGINE_URL` and `ENGINE_TOKEN` on your Convex
 deployment ([docs/engines.md](docs/engines.md) covers deploying it or running it locally).
 
+Sign-in (Google, GitHub) needs a few Convex env vars and OAuth apps: see
+[docs/accounts.md](docs/accounts.md).
+
 Keys in the explorer: ← → step, ↑ ↓ start/end, `f` flip board. Drag pieces on the board to try
 your own moves; they become what-if branches in the tree.
 

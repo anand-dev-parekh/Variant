@@ -11,7 +11,7 @@ import { moveLabel } from '../lib/treeLayout';
 const VERDICT_WORD = { inaccuracy: 'an inaccuracy', mistake: 'a mistake', blunder: 'a blunder' } as const;
 
 /** What a message needs to turn the lines it mentions into board previews. */
-type Lines = { tree: GameTree; onPreview: (link: LineLink) => void };
+type Lines = { tree: GameTree; onPreview: (link: LineLink) => void; share?: string };
 
 /** The chat for one position. Answers are grounded in the server's engine analysis and tools. */
 export function NodeChat({
@@ -22,6 +22,8 @@ export function NodeChat({
   tree,
   onPreview,
   previewing,
+  share,
+  readOnly,
 }: {
   node: TreeNode;
   ready: boolean;
@@ -33,14 +35,18 @@ export function NodeChat({
   onPreview: (link: LineLink) => void;
   /** Set while a line is previewed on the board: questions wait until it's in the tree. */
   previewing?: { inTree: boolean; saving: boolean; onKeep: () => void } | null;
+  /** A shared game's link token, for reading its chats. */
+  share?: string;
+  /** Viewers of a shared game read the chats but can't ask. */
+  readOnly?: boolean;
 }) {
-  const lines: Lines = { tree, onPreview };
-  const threadId = useQuery(api.chat.threadFor, { nodeId: node._id });
-  const earlier = useQuery(api.chat.earlierThreads, { nodeId: node._id }) ?? [];
+  const lines: Lines = { tree, onPreview, share };
+  const threadId = useQuery(api.chat.threadFor, { nodeId: node._id, share });
+  const earlier = useQuery(api.chat.earlierThreads, { nodeId: node._id, share }) ?? [];
   const send = useMutation(api.chat.send);
   const { results: messages } = useUIMessages(
     api.chat.messages,
-    threadId ? { threadId } : 'skip',
+    threadId ? { threadId, share } : 'skip',
     { initialNumItems: 30, stream: true },
   );
   const [draft, setDraft] = useState('');
@@ -77,7 +83,10 @@ export function NodeChat({
       ))}
       {earlier.length > 0 && <p className="chat-here">Here · {node.moveSan ? moveLabel(node) : 'Start'}</p>}
 
-      {messages.length === 0 && !previewing && (
+      {messages.length === 0 && readOnly && earlier.length === 0 && (
+        <p className="chat-note muted">No questions were asked about this move.</p>
+      )}
+      {messages.length === 0 && !previewing && !readOnly && (
         <div className="chat-suggestions">
           {suggestions(node, bestLabel).map((q) => (
             <button key={q} className="chat-suggestion ghost" disabled={busy} onClick={() => void ask(q)}>
@@ -96,7 +105,7 @@ export function NodeChat({
         </ol>
       )}
 
-      {previewing ? (
+      {readOnly ? null : previewing ? (
         <div className="chat-previewing">
           <p>
             You're previewing a line. {previewing.inTree ? 'Go to it in the tree' : 'Add it to the tree'} to ask about
@@ -149,7 +158,11 @@ function EarlierChat({
   lines: Lines;
 }) {
   const context = lines.tree.byId.get(nodeId);
-  const { results: messages } = useUIMessages(api.chat.messages, { threadId }, { initialNumItems: 30, stream: true });
+  const { results: messages } = useUIMessages(
+    api.chat.messages,
+    { threadId, share: lines.share },
+    { initialNumItems: 30, stream: true },
+  );
   if (messages.length === 0 || !context) return null;
   const asked = messages.filter((m) => m.role === 'user').length;
   return (
