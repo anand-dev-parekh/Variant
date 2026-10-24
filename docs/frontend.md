@@ -9,9 +9,34 @@ Hash routing in `App.tsx`, no router library:
 
 | Hash | Page |
 | --- | --- |
-| `#/` (anything else) | `pages/ImportPage.tsx`: signed out, the landing page with "Continue with Google / GitHub"; signed in, the import card, **Import from Lichess or Chess.com** (`SiteImport`), and your games |
+| `#/` (anything else) | `pages/HomePage.tsx`: signed out, `Landing`; signed in, `Home` (see below) |
 | `#/game/<id>` | `pages/GameView.tsx`: the explorer, for the game's owner |
 | `#/game/<id>/s/<token>` | The same explorer, read-only, for anyone with a share link (signed in or not). See [accounts](accounts.md) |
+
+## Home and landing (`Home`, `Landing`)
+
+Their layout styles are under `.v2` at the end of `styles.css`; the look itself is the app's
+(see Styling). Header: `SiteHeader` (wordmark, page actions, `UserMenu`; `wide` in the game view).
+
+- **`Landing`** (signed out): the pitch with "Continue with Google / GitHub", the Opera Game drawn
+  as a tree (`TreeSketch` with `OPERA_STOPS`), a three-step strip, a coach example, a closing bar.
+- **`Home`** (signed in), from `games.list` only (no game trees are loaded):
+  - The latest game: a headline from the result and your side ("You beat X as White, in 40
+    moves."), its biggest turning points (up to 4: move, verdict, who played it, the engine's
+    move instead), stats, and a framed `TreeSketch` of the game plus its eval `Sparkline`.
+  - Totals: games, won–lost–drawn and your blunders a game (games where your side is known),
+    what-ifs explored.
+  - Your games: a row each (mini board at the biggest turning point, key move, sparkline, result
+    pill), filterable by result, with **Delete** on hover.
+  - No games yet: three ways in (Lichess, Chess.com, PGN).
+- Your side of a game is `yourSide` from `games.list`: the player whose name matches one of your
+  connected chess-site usernames. Without a match, rows show both players and the raw result.
+- **Import game** (header) opens `ImportDialog`: a tab per site (connect a username, then recent
+  games with Analyze / Open) and **Paste a PGN** (`ImportPanel`). `Home` fetches recent games for
+  each connected site once (`useRecentGames`) and badges the button with how many aren't imported
+  yet.
+- `lib/gameSummary.ts` (tested) turns a game summary into move labels, outcomes, the top turning
+  points and the stops `TreeSketch` draws.
 
 ## The explorer (`GameView`)
 
@@ -124,17 +149,20 @@ goes off-screen (keyboard navigation, folding, resizing), but never fights manua
 ## Styling
 
 Plain CSS in `styles.css` with design tokens as custom properties on `:root`, redefined under
-`prefers-color-scheme: dark`. Light mode follows Cartesia (near-white, hairlines); dark mode
-follows Railway (deep violet-black). One violet accent.
+`prefers-color-scheme: dark`. A calm look in the spirit of Cartesia: a warm off-white (a warm
+near-black in dark mode), hairline borders, small radii, near-black primary buttons. Every board is
+warm wood (`--sq-light`, `--sq-dark`): the mini boards directly, the main and floating boards
+through `SQUARE_COLORS` in `GameView`. One violet accent for links and selection.
 
-Fonts (Google Fonts, `index.html`): IBM Plex Serif for headings, Inter for UI, IBM Plex Mono for
-PGN and numbers.
+Fonts (Google Fonts, `index.html`): Newsreader for headings, Geist for UI, IBM Plex Mono for
+moves, numbers and labels.
 
 **Owner vs viewer.** `games.tree` returns the caller's `role`. Owners get the Share and Delete
-buttons in the game header (`DeleteGame`, also on each home-page card; it asks to confirm in
+buttons in the game header (`DeleteGame`, also on each home-page row; it asks to confirm in
 place, then goes home). Viewers get a "Shared by … · view only" banner; board moves, Remove, Delete,
 the question box and "Add to tree" are off, and the share token is passed to every query.
 
-Shared pieces: `TopBar` (sticky header, with `UserMenu`: avatar, name, Sign out; `narrow` aligns it with the 1200 px landing frame),
-`TreePreview` (the landing page's picture of the tree: the Opera Game drawn with the real tree's
-metro classes and real positions, with hand-placed, illustrative verdicts).
+Shared pieces: `SiteHeader` (every page's header, with `UserMenu`: avatar, name, Sign out),
+`TreeSketch` (a still picture of a game tree drawn with the real tree's metro classes: your latest
+game on the home page; on the landing, the Opera Game with real positions and hand-placed,
+illustrative verdicts).

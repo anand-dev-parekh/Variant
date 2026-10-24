@@ -1,72 +1,48 @@
 import { useAction, useMutation, useQuery } from 'convex/react';
 import { ConvexError } from 'convex/values';
-import { useEffect, useState, type FormEvent } from 'react';
+import { useCallback, useEffect, useState, type FormEvent } from 'react';
 import { api } from '../../convex/_generated/api';
 import type { Id } from '../../convex/_generated/dataModel';
 import type { Site, SiteGame } from '../../convex/lib/chessSites';
 
-const SITES: { site: Site; name: string }[] = [
+export const SITES: { site: Site; name: string }[] = [
   { site: 'lichess', name: 'Lichess' },
   { site: 'chesscom', name: 'Chess.com' },
 ];
-const TAB_KEY = 'variant.importSite';
+export const siteName = (site: Site) => SITES.find((s) => s.site === site)!.name;
 
 const errorText = (err: unknown) => (err instanceof ConvexError ? String(err.data) : 'Something went wrong. Try again.');
 
-/**
- * Import from a chess site: connect your username once, then pick from your recent games.
- * Games already imported open instead of being analyzed again.
- */
-export function SiteImport() {
-  const profile = useQuery(api.profiles.mine);
-  const [site, setSite] = useState<Site>(() => {
-    try {
-      return localStorage.getItem(TAB_KEY) === 'chesscom' ? 'chesscom' : 'lichess';
-    } catch {
-      return 'lichess';
-    }
-  });
-  const choose = (next: Site) => {
-    setSite(next);
-    try {
-      localStorage.setItem(TAB_KEY, next);
-    } catch {
-      // Not remembered; fine.
-    }
-  };
-  if (profile === undefined || profile === null) return null;
-  const username = profile[site];
+export type RecentGames = { games: SiteGame[] | null; error: string | null; reload: () => void };
 
-  return (
-    <div className="site-import">
-      <div className="site-tabs" role="tablist">
-        {SITES.map((s) => (
-          <button
-            key={s.site}
-            role="tab"
-            aria-selected={site === s.site}
-            className={site === s.site ? 'active' : ''}
-            onClick={() => choose(s.site)}
-          >
-            {s.name}
-            {profile[s.site] && <span className="muted"> · {profile[s.site]}</span>}
-          </button>
-        ))}
-      </div>
-      {username ? (
-        <RecentGames key={`${site}:${username}`} site={site} username={username} />
-      ) : (
-        <ConnectForm key={site} site={site} />
-      )}
-    </div>
-  );
+/** The connected account's recent games on a site (fetched once per username), or nothing without one. */
+export function useRecentGames(site: Site, username: string | undefined): RecentGames {
+  const recent = useAction(api.imports.recent);
+  const [games, setGames] = useState<SiteGame[] | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const reload = useCallback(() => {
+    if (!username) return;
+    setError(null);
+    setGames(null);
+    recent({ site })
+      .then(setGames)
+      .catch((err) => setError(errorText(err)));
+  }, [recent, site, username]);
+  useEffect(reload, [reload]);
+  return { games, error, reload };
 }
 
-function ConnectForm({ site, current, onDone }: { site: Site; current?: string; onDone?: () => void }) {
+/** Recent games on a site that aren't imported yet. */
+export function useNewGameCount(site: Site, recent: RecentGames): number {
+  const imported = useQuery(api.games.importedFrom, { site }) ?? {};
+  return recent.games?.filter((g) => !imported[g.id]).length ?? 0;
+}
+
+/** Connect (or change) the username to import from. */
+export function ConnectForm({ site, current, onDone }: { site: Site; current?: string; onDone?: () => void }) {
   const setUsername = useMutation(api.profiles.setUsername);
   const [name, setName] = useState(current ?? '');
   const [error, setError] = useState<string | null>(null);
-  const siteName = SITES.find((s) => s.site === site)!.name;
   const submit = async (e: FormEvent) => {
     e.preventDefault();
     setError(null);
@@ -80,7 +56,7 @@ function ConnectForm({ site, current, onDone }: { site: Site; current?: string; 
   return (
     <form className="site-connect" onSubmit={(e) => void submit(e)}>
       <label>
-        Your {siteName} username
+        Your {siteName(site)} username
         <input value={name} onChange={(e) => setName(e.target.value)} placeholder="username" autoComplete="off" spellCheck={false} />
       </label>
       <button className="primary" type="submit" disabled={!name.trim() && !current}>
@@ -97,24 +73,14 @@ function ConnectForm({ site, current, onDone }: { site: Site; current?: string; 
   );
 }
 
-function RecentGames({ site, username }: { site: Site; username: string }) {
-  const recent = useAction(api.imports.recent);
+/** The recent games of a connected account, each with Analyze (or Open, if already imported). */
+export function RecentGameList({ site, username, recent }: { site: Site; username: string; recent: RecentGames }) {
   const imported = useQuery(api.games.importedFrom, { site }) ?? {};
   const create = useMutation(api.games.create);
-  const [games, setGames] = useState<SiteGame[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [editing, setEditing] = useState(false);
   const [importing, setImporting] = useState<string | null>(null);
-
-  const load = () => {
-    setError(null);
-    setGames(null);
-    recent({ site })
-      .then(setGames)
-      .catch((err) => setError(errorText(err)));
-  };
-  // `RecentGames` is keyed by site and username, so this runs once per account shown.
-  useEffect(load, []);
+  const { games } = recent;
 
   const open = (id: Id<'games'>) => (window.location.hash = `#/game/${id}`);
   const analyze = async (g: SiteGame) => {
@@ -130,19 +96,20 @@ function RecentGames({ site, username }: { site: Site; username: string }) {
 
   if (editing) return <ConnectForm site={site} current={username} onDone={() => setEditing(false)} />;
   const lower = username.toLowerCase();
+  const shownError = error ?? recent.error;
   return (
     <div className="site-recent">
       <div className="site-recent-head">
         <span className="muted">Recent games of {username}</span>
-        <button className="link" onClick={load}>
+        <button className="link" onClick={recent.reload}>
           Refresh
         </button>
         <button className="link" onClick={() => setEditing(true)}>
           Change username
         </button>
       </div>
-      {error && <p className="import-error">{error}</p>}
-      {!games && !error && <p className="muted">Loading games…</p>}
+      {shownError && <p className="import-error">{shownError}</p>}
+      {!games && !shownError && <p className="muted">Loading games…</p>}
       {games?.length === 0 && <p className="muted">No finished standard games yet.</p>}
       {games && games.length > 0 && (
         <ul className="site-games">

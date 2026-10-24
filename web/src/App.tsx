@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import type { Id } from '../convex/_generated/dataModel';
 import { GameView } from './pages/GameView';
-import { ImportPage } from './pages/ImportPage';
+import { HomePage } from './pages/HomePage';
 
 /**
  * Hash routes: `#/` is the landing page (signed out) or your games (signed in), `#/game/<id>`
@@ -17,5 +17,5 @@ export function App() {
   }, []);
 
   const [, gameId, share] = hash.match(/^#\/game\/(\w+)(?:\/s\/(\w+))?/) ?? [];
-  return gameId ? <GameView key={gameId} gameId={gameId as Id<'games'>} share={share} /> : <ImportPage />;
+  return gameId ? <GameView key={gameId} gameId={gameId as Id<'games'>} share={share} /> : <HomePage />;
 }

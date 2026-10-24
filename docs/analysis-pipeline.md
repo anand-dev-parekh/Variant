@@ -69,7 +69,10 @@ move (`classifyAndBranch`):
    *before* the move that isn't the played move (`BRANCH_ALTERNATIVES = 1`), plays it for
    `BRANCH_PLIES = 5` plies, and inserts it as `engine` nodes under the parent position.
 
-Then sets `status: 'ready'`.
+Then sets `status: 'ready'` and the game's `summary` (`summarize`: the main line, its evaluations
+and the turning points with the engine's line at each; see [data model](data-model.md)).
+`reclassify` rewrites the summary too, and `pipeline:summarizeAll` fills it in for games analyzed
+before it existed.
 
 ## What-ifs (`branches.ts`)
 

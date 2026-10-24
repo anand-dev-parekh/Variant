@@ -82,7 +82,7 @@ export const finalize = internalMutation({
     const game = await ctx.db.get('games', gameId);
     if (!game || game.status !== 'analyzing') return;
     await classifyAndBranch(ctx, gameId);
-    await ctx.db.patch('games', gameId, { status: 'ready' });
+    await ctx.db.patch('games', gameId, { status: 'ready', summary: await summarize(ctx, gameId) });
   },
 });
 
@@ -101,8 +101,76 @@ export const reclassify = internalMutation({
       .take(MAX_NODES);
     for (const node of engineNodes) await ctx.db.delete('nodes', node._id);
     await classifyAndBranch(ctx, gameId);
+    await ctx.db.patch('games', gameId, { summary: await summarize(ctx, gameId) });
   },
 });
+
+/** One-off: summaries for games analyzed before they existed. `npx convex run pipeline:summarizeAll` */
+export const summarizeAll = internalMutation({
+  args: {},
+  handler: async (ctx) => {
+    let done = 0;
+    for (const game of await ctx.db.query('games').take(200)) {
+      if (game.status !== 'ready' || game.summary) continue;
+      await ctx.db.patch('games', game._id, { summary: await summarize(ctx, game._id) });
+      done++;
+    }
+    return done;
+  },
+});
+
+/** Engine scores as pawns for a graph: mate counts as ±10. */
+function pawns(score: Score): number {
+  if (score.mate !== undefined) return score.mate > 0 ? 10 : -10;
+  return Math.max(-10, Math.min(10, Math.round(score.cp) / 100));
+}
+
+/** The game's summary, from its classified main line and engine branches. */
+async function summarize(ctx: QueryCtx, gameId: Id<'games'>): Promise<Doc<'games'>['summary']> {
+  const nodes = await mainlineOf(ctx, gameId);
+  const evals: number[] = [];
+  for (const node of nodes) {
+    const analysis = await analysisFor(ctx, node.positionKey);
+    evals.push(analysis ? pawns(scoreOf(analysis)) : (evals.at(-1) ?? 0));
+  }
+
+  const moments = [];
+  for (let i = 1; i < nodes.length; i++) {
+    const node = nodes[i]!;
+    if (!node.classification || (!node.critical && !node.keyMoment)) continue;
+    const parent = nodes[i - 1]!;
+    const san: string[] = [];
+    let firstUci: string | undefined;
+    for (let at = parent._id; ; ) {
+      const next = (await ctx.db.query('nodes').withIndex('by_parentId', (q) => q.eq('parentId', at)).take(20)).find(
+        (n) => n.source === 'engine',
+      );
+      if (!next?.moveSan) break;
+      firstUci ??= next.moveUci;
+      san.push(next.moveSan);
+      at = next._id;
+    }
+    const line = (await analysisFor(ctx, parent.positionKey))?.lines.find((l) => l.pv[0] === firstUci);
+    moments.push({
+      ply: node.ply,
+      classification: node.classification,
+      winPercentLoss: node.winPercentLoss ?? 0,
+      fen: node.fen,
+      ...(san.length && line && { best: { san, score: line.score } }),
+    });
+  }
+
+  const biggest = moments.reduce<(typeof moments)[number] | undefined>(
+    (top, m) => (!top || m.winPercentLoss > top.winPercentLoss ? m : top),
+    undefined,
+  );
+  return {
+    san: nodes.slice(1).map((n) => n.moveSan!),
+    evals,
+    moments,
+    fen: biggest?.fen ?? nodes.at(-1)!.fen,
+  };
+}
 
 async function classifyAndBranch(ctx: MutationCtx, gameId: Id<'games'>) {
   const nodes = await mainlineOf(ctx, gameId);

@@ -21,7 +21,7 @@ import { GameTreeView, type Revealed } from '../components/GameTreeView';
 import { GLYPHS, MoveList } from '../components/MoveList';
 import { MaterialStrip } from '../components/MaterialStrip';
 import { NodeChat } from '../components/NodeChat';
-import { TopBar } from '../components/TopBar';
+import { SiteHeader } from '../components/SiteHeader';
 import { useAnalysis } from '../engine/useAnalysis';
 import { nodesAlong, type LineLink } from '../lib/chatLines';
 import { GameTree, type TreeNode } from '../lib/tree';
@@ -29,6 +29,13 @@ import { moveLabel } from '../lib/treeLayout';
 
 const LAST_MOVE_STYLE = { background: 'rgba(255, 210, 60, 0.42)' };
 const PICKED_STYLE = { background: 'rgba(91, 63, 217, 0.35)' };
+/** The boards use the theme's square colors (`--sq-light`, `--sq-dark`), as the mini boards do. */
+const SQUARE_COLORS = {
+  lightSquareStyle: { backgroundColor: 'var(--sq-light)' },
+  darkSquareStyle: { backgroundColor: 'var(--sq-dark)' },
+  lightSquareNotationStyle: { color: 'var(--sq-dark)' },
+  darkSquareNotationStyle: { color: 'var(--sq-light)' },
+};
 const GAME_OVER_TEXT = {
   checkmate: (fen: string) => `Checkmate — ${fen.split(' ')[1] === 'w' ? 'Black' : 'White'} wins.`,
   stalemate: () => 'Stalemate.',
@@ -267,11 +274,11 @@ function Explorer({ data, tree, share }: { data: TreeData; tree: GameTree; share
 
   return (
     <>
-      <TopBar>
-        <a className="button ghost" href="#/">
-          {isOwner ? 'New game' : 'Variant home'}
+      <SiteHeader wide>
+        <a className="site-header-link" href="#/">
+          {isOwner ? 'Your games' : 'Variant home'}
         </a>
-      </TopBar>
+      </SiteHeader>
       <main className="app">
         <header className="game-header">
           <h1 className="game-title">
@@ -322,6 +329,7 @@ function Explorer({ data, tree, share }: { data: TreeData; tree: GameTree; share
                 <Chessboard
                   options={{
                     id: 'main',
+                    ...SQUARE_COLORS,
                     position: viewFen,
                     boardOrientation: orientation,
                     allowDragging: canEdit && !preview,
@@ -734,6 +742,7 @@ function FloatingBoard({
       <Chessboard
         options={{
           id: 'floating',
+          ...SQUARE_COLORS,
           position: node.fen,
           boardOrientation: orientation,
           allowDragging: false,

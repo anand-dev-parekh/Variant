@@ -88,8 +88,8 @@ web/
   convex/                backend (schema, games, pipeline, engine actions, lib/)
   scripts/               prepare-stockfish.mjs (runs on install/dev/build)
   src/
-    pages/               ImportPage (landing), GameView (explorer)
-    components/          board-side widgets, GameTreeView, TopBar, TreePreview
+    pages/               HomePage (Landing or Home), GameView (explorer)
+    components/          board-side widgets, GameTreeView, SiteHeader, TreeSketch, ImportDialog
     engine/              browser Stockfish wrapper + useAnalysis hook
     lib/                 GameTree index, tree layout (+ tests)
 docs/                    you are here

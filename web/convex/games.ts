@@ -74,7 +74,14 @@ export const create = mutation({
   },
 });
 
-/** The signed-in user's games, newest first; empty when signed out. */
+/** Chats and what-ifs are counted up to this many per game in `list`. */
+const COUNT_CAP = 50;
+
+/**
+ * The signed-in user's games, newest first; empty when signed out. Each says which side the user
+ * played (`yourSide`, from their connected chess-site usernames; null if neither player matches)
+ * and how many chats and what-ifs it has (up to COUNT_CAP).
+ */
 export const list = query({
   args: {},
   handler: async (ctx) => {
@@ -85,7 +92,29 @@ export const list = query({
       .withIndex('by_ownerId', (q) => q.eq('ownerId', ownerId))
       .order('desc')
       .take(50);
-    return games.map(({ pgn: _pgn, shareToken: _token, ...game }) => game);
+    const profile = await ctx.db
+      .query('profiles')
+      .withIndex('by_userId', (q) => q.eq('userId', ownerId))
+      .unique();
+    const names = [profile?.lichess, profile?.chesscom].filter(Boolean).map((n) => n!.toLowerCase());
+    const sideOf = (game: Doc<'games'>) =>
+      names.includes(game.white.toLowerCase()) ? ('w' as const) : names.includes(game.black.toLowerCase()) ? ('b' as const) : null;
+
+    return Promise.all(
+      games.map(async ({ pgn: _pgn, shareToken: _token, ...game }) => {
+        const [chats, whatIfs] = await Promise.all([
+          ctx.db
+            .query('threads')
+            .withIndex('by_gameId', (q) => q.eq('gameId', game._id))
+            .take(COUNT_CAP),
+          ctx.db
+            .query('nodes')
+            .withIndex('by_gameId_and_source_and_ply', (q) => q.eq('gameId', game._id).eq('source', 'user'))
+            .take(COUNT_CAP),
+        ]);
+        return { ...game, yourSide: sideOf(game as Doc<'games'>), chats: chats.length, whatIfs: whatIfs.length };
+      }),
+    );
   },
 });
 

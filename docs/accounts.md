@@ -95,8 +95,10 @@ Remove buttons and Delete key are off, the question box is hidden, and line prev
 - `games.create({ pgn, origin })` stores `origin = { site, id }`. If the user already imported
   that game, it returns the existing one instead of analyzing it again
   (`by_ownerId_and_origin`). `games.importedFrom({ site })` lets the list show **Open** for those.
-- UI: `SiteImport` on the signed-in home page: a tab per site, connect a username, then the
-  recent games with **Analyze** / **Open**.
+- UI: **Import game** on the signed-in home opens `ImportDialog`: a tab per site (connect a
+  username, then the recent games with **Analyze** / **Open**) and one for pasting a PGN.
+- Your connected usernames also tell `games.list` which side you played (`yourSide`), for the
+  home page's "You beat…" and won/lost counts.
 
 ## Deleting a game
 
@@ -105,7 +107,7 @@ share link stops working and its analysis pass stops (the pipeline treats a miss
 done). `games.deleteTree` then deletes its chat threads (with their messages, through the agent
 component's `deleteAllForThreadIdAsync`) and nodes, 500 at a time, rescheduling itself until
 none are left. `analyses` are kept: they're shared by position. In the app, **Delete** is in the
-game header and on each card in "Your games" (shown on hover), with a confirm step.
+game header and on each row of "Your games" (shown on hover), with a confirm step.
 
 ## Not done yet
 

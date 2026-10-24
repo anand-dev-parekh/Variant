@@ -21,6 +21,28 @@ export const vClassification = v.union(
 
 export const vSite = v.union(v.literal('lichess'), v.literal('chesscom'));
 
+/** What lists and the home page show about an analyzed game, so they don't load its tree. */
+export const vGameSummary = v.object({
+  /** Main-line moves in SAN, from the start. */
+  san: v.array(v.string()),
+  /** White-POV evaluation in pawns of every main-line position (start included), clamped to ±10. */
+  evals: v.array(v.number()),
+  /** The turning points (critical moves and key moments), in game order. */
+  moments: v.array(
+    v.object({
+      ply: v.number(),
+      classification: vClassification,
+      winPercentLoss: v.number(),
+      /** The position after the move. */
+      fen: v.string(),
+      /** The engine's line instead, from the position before the move, and its score. */
+      best: v.optional(v.object({ san: v.array(v.string()), score: vScore })),
+    }),
+  ),
+  /** The position to show for the game: after its biggest turning point, else the final one. */
+  fen: v.string(),
+});
+
 export default defineSchema({
   /** Users, sessions and OAuth accounts (Convex Auth). */
   ...authTables,
@@ -43,6 +65,8 @@ export default defineSchema({
     /** Engine settings for this game's analysis pass. */
     depth: v.number(),
     multiPv: v.number(),
+    /** Set when analysis finishes. */
+    summary: v.optional(vGameSummary),
   })
     .index('by_ownerId', ['ownerId'])
     .index('by_shareToken', ['shareToken'])

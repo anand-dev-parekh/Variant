@@ -17,6 +17,7 @@ One imported game.
 | `white`, `black`, `result`, `event?`, `date?` | From PGN headers (`parseGame`), with "White"/"Black"/"*" fallbacks |
 | `status` | `analyzing` → `ready`, or `failed` with `error` |
 | `depth`, `multiPv` | Engine settings used for this game (`ANALYSIS_DEPTH = 18`, `ANALYSIS_MULTIPV = 3` in `games.ts`) |
+| `summary?` | Set when analysis finishes, for lists and the home page: main-line `san`, `evals` (White-POV pawns per position, ±10), `moments` (critical moves and key moments: ply, classification, win-% loss, position after, and the engine's line instead with its score), and `fen` (the position to show: after the biggest turning point, else the last) |
 
 Indexes: `by_ownerId` (your games), `by_shareToken`, `by_ownerId_and_origin` (`origin.site`,
 `origin.id`).
