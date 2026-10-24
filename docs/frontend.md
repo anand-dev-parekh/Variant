@@ -52,7 +52,8 @@ Layout (`.workspace` grid): **board | tabbed panel**. Under 920 px they stack.
   line, with marks at inaccuracies, mistakes, blunders and key moments; click or drag to jump),
   a one-line strip with the engine's best line, and navigation buttons. Once the game is
   analyzed the board is **playable**: drag a piece, or click it and then a square (side to move
-  only). A move that's already in the tree just follows it; a new one becomes a what-if
+  only). The picked piece's square turns yellow, with a dot on each square it can move to and a
+  ring around each capture (`legalTargets` in chess-core). A move that's already in the tree just follows it; a new one becomes a what-if
   (`branches.addMoves`), shown immediately while it saves. Pawns reaching the last rank become
   queens for now (`moveFromSquares`, chess-core).
 - **Panel tabs** (the chosen tab is remembered in `localStorage`, default Tree):

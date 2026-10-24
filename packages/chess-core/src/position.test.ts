@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { moveFromSquares, playSanLine } from './position';
+import { legalTargets, moveFromSquares, playSanLine } from './position';
 
 const START_FEN = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1';
 
@@ -29,6 +29,23 @@ describe('playSanLine', () => {
   it('refuses moves once the game is over', () => {
     const mated = 'rnb1kbnr/pppp1ppp/8/4p3/6Pq/5P2/PPPPP2P/RNBQKBNR w KQkq - 1 3';
     expect(playSanLine(mated, ['e3']).illegal?.reason).toBe('the game is already over');
+  });
+});
+
+describe('legalTargets', () => {
+  it("lists a piece's moves and marks captures", () => {
+    expect(legalTargets(START_FEN, 'g1').map((t) => t.to).sort()).toEqual(['f3', 'h3']);
+    const scandi = 'rnbqkbnr/ppp1pppp/8/3p4/4P3/8/PPPP1PPP/RNBQKBNR w KQkq - 0 2';
+    expect(legalTargets(scandi, 'e4')).toEqual([
+      { to: 'e5', capture: false },
+      { to: 'd5', capture: true },
+    ]);
+  });
+
+  it('counts a promotion once, and nothing for empty squares or the side not to move', () => {
+    expect(legalTargets('8/P7/8/8/8/8/8/k6K w - - 0 1', 'a7')).toEqual([{ to: 'a8', capture: false }]);
+    expect(legalTargets(START_FEN, 'e4')).toEqual([]);
+    expect(legalTargets(START_FEN, 'e7')).toEqual([]);
   });
 });
 

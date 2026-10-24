@@ -1,9 +1,10 @@
-import { Fragment, useCallback, useEffect, useMemo, useState } from 'react';
+import { Fragment, useCallback, useEffect, useMemo, useState, type CSSProperties } from 'react';
 import { useMutation, useQuery } from 'convex/react';
 import { Chessboard } from 'react-chessboard';
 import {
   formatSanLine,
   formatScore,
+  legalTargets,
   moveFromSquares,
   positionKey,
   sideToMove,
@@ -27,8 +28,13 @@ import { nodesAlong, type LineLink } from '../lib/chatLines';
 import { GameTree, type TreeNode } from '../lib/tree';
 import { moveLabel } from '../lib/treeLayout';
 
-const LAST_MOVE_STYLE = { background: 'rgba(255, 210, 60, 0.42)' };
-const PICKED_STYLE = { background: 'rgba(91, 63, 217, 0.35)' };
+// Square highlights are background colors and move markers are background images, so a square can
+// show both (a dot on the last move's square, say).
+const LAST_MOVE_STYLE: CSSProperties = { backgroundColor: 'rgba(255, 210, 60, 0.42)' };
+const PICKED_STYLE: CSSProperties = { backgroundColor: 'rgba(255, 210, 60, 0.6)' };
+/** Where the picked piece can go: a dot on an empty square, a ring around a capture. */
+const MOVE_DOT_STYLE: CSSProperties = { backgroundImage: 'radial-gradient(circle, rgba(20, 20, 20, 0.22) 24%, transparent 26%)', cursor: 'pointer' };
+const CAPTURE_STYLE: CSSProperties = { backgroundImage: 'radial-gradient(circle, transparent 66%, rgba(20, 20, 20, 0.22) 68%)', cursor: 'pointer' };
 /** The boards use the theme's square colors (`--sq-light`, `--sq-dark`), as the mini boards do. */
 const SQUARE_COLORS = {
   lightSquareStyle: { backgroundColor: 'var(--sq-light)' },
@@ -186,6 +192,7 @@ function Explorer({ data, tree, share }: { data: TreeData; tree: GameTree; share
     if (picked && picked !== square && tryMove(picked, square)) return;
     setPicked(picked !== square && ownPiece(pieceType) ? square : null);
   };
+  const targets = useMemo(() => (picked && canEdit && !preview ? legalTargets(boardFen, picked) : []), [picked, canEdit, preview, boardFen]);
   const saved = analyses[positionKey(analysisFen)];
   const terminal = useMemo(() => terminalState(analysisFen), [analysisFen]);
   // The browser engine only runs where the server hasn't analyzed the position yet.
@@ -334,17 +341,12 @@ function Explorer({ data, tree, share }: { data: TreeData; tree: GameTree; share
                     boardOrientation: orientation,
                     allowDragging: canEdit && !preview,
                     canDragPiece: ({ piece }) => canEdit && ownPiece(piece.pieceType),
+                    onPieceDrag: ({ square }) => square && setPicked(square),
                     onPieceDrop: ({ sourceSquare, targetSquare }) =>
                       targetSquare ? tryMove(sourceSquare, targetSquare) : false,
                     onSquareClick: ({ piece, square }) => clickSquare(square, piece?.pieceType),
                     animationDurationInMs: 150,
-                    squareStyles: {
-                      ...(lastUci && {
-                        [lastUci.slice(0, 2)]: LAST_MOVE_STYLE,
-                        [lastUci.slice(2, 4)]: LAST_MOVE_STYLE,
-                      }),
-                      ...(picked && { [picked]: PICKED_STYLE }),
-                    },
+                    squareStyles: squareStyles(lastUci, picked, targets),
                     arrows: best?.pv[0]
                       ? [
                           {
@@ -592,6 +594,19 @@ function ShareControl({ gameId, token }: { gameId: Id<'games'>; token: string | 
       )}
     </div>
   );
+}
+
+/** The main board's square styles: the last move, the picked piece, and where it can go. */
+function squareStyles(lastUci: string | undefined, picked: string | null, targets: { to: string; capture: boolean }[]) {
+  const styles: Record<string, CSSProperties> = {};
+  const add = (square: string, style: CSSProperties) => (styles[square] = { ...styles[square], ...style });
+  if (lastUci) {
+    add(lastUci.slice(0, 2), LAST_MOVE_STYLE);
+    add(lastUci.slice(2, 4), LAST_MOVE_STYLE);
+  }
+  if (picked) add(picked, PICKED_STYLE);
+  for (const t of targets) add(t.to, t.capture ? CAPTURE_STYLE : MOVE_DOT_STYLE);
+  return styles;
 }
 
 function readTab(): Tab {

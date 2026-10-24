@@ -71,6 +71,19 @@ export function playSanLine(fen: string, sanMoves: string[]): PlayedLine {
  * The move a piece dragged (or clicked) from one square to another makes, or null if illegal.
  * Pawns reaching the last rank promote to a queen.
  */
+/** Where the piece on `from` can move (promotions counted once), and whether each move captures. */
+export function legalTargets(fen: string, from: string): { to: string; capture: boolean }[] {
+  const targets = new Map<string, boolean>();
+  try {
+    for (const m of new Chess(fen).moves({ square: from as Square, verbose: true })) {
+      targets.set(m.to, Boolean(m.captured));
+    }
+  } catch {
+    return [];
+  }
+  return [...targets].map(([to, capture]) => ({ to, capture }));
+}
+
 export function moveFromSquares(fen: string, from: string, to: string): { uci: string; san: string; fen: string } | null {
   const piece = new Chess(fen).get(from as Square);
   if (!piece) return null;
