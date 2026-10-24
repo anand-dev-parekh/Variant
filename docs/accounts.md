@@ -63,7 +63,7 @@ once, give them to yourself: `npx convex run games:claimUnowned '{"email": "you@
   `chat.messages`) takes an optional `share` token and checks `readableGame`. `chat.messages`
   finds the game through the thread row (`threads.by_threadId`).
 - Every public mutation that changes a game (`chat.send`, `branches.addMoves`,
-  `branches.removeWhatIf`, `games.setSharing`) checks `ownedGame`. Not-owned and not-found look
+  `branches.removeWhatIf`, `games.setSharing`, `games.remove`) checks `ownedGame`. Not-owned and not-found look
   the same, so ids don't reveal whether a game exists.
 - Internal functions (the analysis pipeline, `chat.respond`) run without a user and don't check.
 - `analyses` stays global: an engine evaluation of a position is the same for everyone, and
@@ -98,7 +98,16 @@ Remove buttons and Delete key are off, the question box is hidden, and line prev
 - UI: `SiteImport` on the signed-in home page: a tab per site, connect a username, then the
   recent games with **Analyze** / **Open**.
 
+## Deleting a game
+
+`games.remove({ gameId })` (owner only) deletes the game row at once, so it leaves the list, its
+share link stops working and its analysis pass stops (the pipeline treats a missing game as
+done). `games.deleteTree` then deletes its chat threads (with their messages, through the agent
+component's `deleteAllForThreadIdAsync`) and nodes, 500 at a time, rescheduling itself until
+none are left. `analyses` are kept: they're shared by position. In the app, **Delete** is in the
+game header and on each card in "Your games" (shown on hover), with a confirm step.
+
 ## Not done yet
 
-Usage limits per user (questions and imports cost real money), deleting games, and a production
+Usage limits per user (questions and imports cost real money), and a production
 deployment (it needs its own keys, `SITE_URL` and OAuth apps).

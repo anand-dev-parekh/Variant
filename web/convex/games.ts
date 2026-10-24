@@ -1,6 +1,6 @@
 import { ConvexError, v } from 'convex/values';
 import { PgnParseError, parseGame, positionKey } from '@variant/chess-core';
-import { internal } from './_generated/api';
+import { components, internal } from './_generated/api';
 import type { Doc } from './_generated/dataModel';
 import { internalMutation, mutation, query } from './_generated/server';
 import { currentUserId, ownedGame, readableGame, requireUserId } from './lib/access';
@@ -137,6 +137,46 @@ export const claimUnowned = internalMutation({
       claimed++;
     }
     return claimed;
+  },
+});
+
+/** Nodes and threads deleted per run of `deleteTree`; it reschedules itself for the rest. */
+const DELETE_BATCH = 500;
+
+/**
+ * Deletes one of the caller's games. The game disappears at once (which also stops its analysis
+ * pass); its tree and chats are cleaned up in the background. Engine analyses are shared by
+ * position across games, so they stay.
+ */
+export const remove = mutation({
+  args: { gameId: v.id('games') },
+  handler: async (ctx, { gameId }) => {
+    await ownedGame(ctx, gameId);
+    await ctx.db.delete('games', gameId);
+    await ctx.scheduler.runAfter(0, internal.games.deleteTree, { gameId });
+  },
+});
+
+/** Deletes a deleted game's chat threads (with their messages) and nodes, a batch at a time. */
+export const deleteTree = internalMutation({
+  args: { gameId: v.id('games') },
+  handler: async (ctx, { gameId }) => {
+    const threads = await ctx.db
+      .query('threads')
+      .withIndex('by_gameId', (q) => q.eq('gameId', gameId))
+      .take(DELETE_BATCH);
+    for (const t of threads) {
+      await ctx.runMutation(components.agent.threads.deleteAllForThreadIdAsync, { threadId: t.threadId });
+      await ctx.db.delete('threads', t._id);
+    }
+    const nodes = await ctx.db
+      .query('nodes')
+      .withIndex('by_gameId_and_ply', (q) => q.eq('gameId', gameId))
+      .take(DELETE_BATCH - threads.length);
+    for (const n of nodes) await ctx.db.delete('nodes', n._id);
+    if (threads.length + nodes.length === DELETE_BATCH) {
+      await ctx.scheduler.runAfter(0, internal.games.deleteTree, { gameId });
+    }
   },
 });
 

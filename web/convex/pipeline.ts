@@ -191,6 +191,8 @@ export const purgeAnalyses = internalMutation({
 export const markFailed = internalMutation({
   args: { gameId: v.id('games'), error: v.string() },
   handler: async (ctx, { gameId, error }) => {
+    // The game may have been deleted while it was being analyzed.
+    if (!(await ctx.db.get('games', gameId))) return;
     await ctx.db.patch('games', gameId, { status: 'failed', error });
   },
 });

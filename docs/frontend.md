@@ -130,8 +130,9 @@ follows Railway (deep violet-black). One violet accent.
 Fonts (Google Fonts, `index.html`): IBM Plex Serif for headings, Inter for UI, IBM Plex Mono for
 PGN and numbers.
 
-**Owner vs viewer.** `games.tree` returns the caller's `role`. Owners get the Share button in
-the game header. Viewers get a "Shared by … · view only" banner; board moves, Remove, Delete,
+**Owner vs viewer.** `games.tree` returns the caller's `role`. Owners get the Share and Delete
+buttons in the game header (`DeleteGame`, also on each home-page card; it asks to confirm in
+place, then goes home). Viewers get a "Shared by … · view only" banner; board moves, Remove, Delete,
 the question box and "Add to tree" are off, and the share token is passed to every query.
 
 Shared pieces: `TopBar` (sticky header, with `UserMenu`: avatar, name, Sign out; `narrow` aligns it with the 1200 px landing frame),

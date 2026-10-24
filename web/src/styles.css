@@ -556,6 +556,48 @@ a.link {
   background: var(--raised);
 }
 
+/* Deleting a game: in the game header, and on each card (shown on hover or focus) */
+.game-grid > li {
+  position: relative;
+}
+.game-grid .delete-game {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  padding: 3px 9px;
+  font-size: 12px;
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+.game-grid > li:hover .delete-game,
+.game-grid .delete-game:focus-visible {
+  opacity: 1;
+}
+@media (hover: none) {
+  .game-grid .delete-game {
+    opacity: 1;
+  }
+}
+.delete-confirm {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+}
+.game-grid .delete-confirm {
+  padding: 0 20px 16px;
+}
+button.danger-solid {
+  color: #fff;
+  background: var(--blunder);
+  border-color: var(--blunder);
+}
+button.danger-solid:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--blunder) 85%, #000);
+  border-color: color-mix(in srgb, var(--blunder) 85%, #000);
+}
+
 .game-card-players {
   display: flex;
   flex-wrap: wrap;
@@ -650,9 +692,16 @@ a.link {
 }
 
 /* Sharing: the owner's Share button and panel, and the viewer's banner */
+.game-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-left: auto;
+}
 .share {
   position: relative;
-  margin-left: auto;
   align-self: center;
 }
 .share-panel {

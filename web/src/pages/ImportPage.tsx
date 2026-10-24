@@ -1,6 +1,7 @@
 import { AuthLoading, Authenticated, Unauthenticated, useConvexAuth, useQuery } from 'convex/react';
 import { api } from '../../convex/_generated/api';
 import { SignInButtons } from '../components/Account';
+import { DeleteGame } from '../components/DeleteGame';
 import { ImportPanel } from '../components/ImportPanel';
 import { SiteImport } from '../components/SiteImport';
 import { TopBar } from '../components/TopBar';
@@ -89,6 +90,7 @@ export function ImportPage() {
                       {g.status !== 'ready' && <span className={`status ${g.status}`}>{g.status}</span>}
                     </span>
                   </a>
+                  <DeleteGame gameId={g._id} />
                 </li>
               ))}
             </ul>

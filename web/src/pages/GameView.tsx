@@ -13,6 +13,7 @@ import {
 } from '@variant/chess-core';
 import { api } from '../../convex/_generated/api';
 import type { Doc, Id } from '../../convex/_generated/dataModel';
+import { DeleteGame } from '../components/DeleteGame';
 import { EngineLines, type DisplayLine } from '../components/EngineLines';
 import { EvalBar } from '../components/EvalBar';
 import { EvalGraph } from '../components/EvalGraph';
@@ -282,7 +283,10 @@ function Explorer({ data, tree, share }: { data: TreeData; tree: GameTree; share
           </span>
           {game.status === 'ready' && <Summary tree={tree} white={game.white} black={game.black} />}
           {isOwner ? (
-            <ShareControl gameId={game._id} token={data.shareToken} />
+            <div className="game-actions">
+              <ShareControl gameId={game._id} token={data.shareToken} />
+              <DeleteGame gameId={game._id} onDeleted={() => (window.location.hash = '#/')} />
+            </div>
           ) : (
             <p className="shared-banner">
               Shared by {data.ownerName ?? 'another player'} · view only
