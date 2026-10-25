@@ -76,7 +76,8 @@ function Explorer({ data, tree, share }: { data: TreeData; tree: GameTree; share
   const isOwner = data.role === 'owner';
   const chatted = useMemo(() => new Set(data.chatted), [data.chatted]);
   const [selectedId, setSelectedId] = useState<Id<'nodes'>>(tree.root._id);
-  const [orientation, setOrientation] = useState<'white' | 'black'>('white');
+  // Your games start from your side of the board (shared ones from the owner's).
+  const [orientation, setOrientation] = useState<'white' | 'black'>(data.ownerSide === 'b' ? 'black' : 'white');
   const [liveEnabled, setLiveEnabled] = useState(true);
   const [tab, setTab] = useState<Tab>(readTab);
   const [fullscreen, setFullscreen] = useState(false);

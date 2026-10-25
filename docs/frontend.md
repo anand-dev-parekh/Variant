@@ -46,7 +46,8 @@ for each position, and progress. It builds a `GameTree` and renders `Explorer`.
 Layout (`.workspace` grid): **board | tabbed panel**. Under 920 px they stack.
 
 - **Board column:** the board (`react-chessboard`) with the last move highlighted and an arrow
-  for the best move, the eval bar, a **player row** above and below it (`MaterialStrip`: name,
+  for the best move. It starts from the owner's side (`ownerSide` from `games.tree`: the player
+  matching their chess-site usernames; White when neither does), and `f` flips it. Around it: the eval bar, a **player row** above and below it (`MaterialStrip`: name,
   the pieces that side has captured with the latest capture highlighted, and `+N` for the side
   ahead in material; from `captures()` in chess-core, follows the flip), the **eval graph** (`EvalGraph`: White's win % across the main
   line, with marks at inaccuracies, mistakes, blunders and key moments; click or drag to jump),

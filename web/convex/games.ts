@@ -1,8 +1,8 @@
 import { ConvexError, v } from 'convex/values';
 import { PgnParseError, parseGame, positionKey } from '@variant/chess-core';
 import { components, internal } from './_generated/api';
-import type { Doc } from './_generated/dataModel';
-import { internalMutation, mutation, query } from './_generated/server';
+import type { Doc, Id } from './_generated/dataModel';
+import { internalMutation, mutation, query, type QueryCtx } from './_generated/server';
 import { currentUserId, ownedGame, readableGame, requireUserId } from './lib/access';
 import { vSite } from './schema';
 
@@ -74,6 +74,20 @@ export const create = mutation({
   },
 });
 
+/**
+ * Which side the user played in their games: the player whose name matches one of their connected
+ * chess-site usernames, or null if neither does.
+ */
+async function sideFinder(ctx: QueryCtx, userId: Id<'users'>) {
+  const profile = await ctx.db
+    .query('profiles')
+    .withIndex('by_userId', (q) => q.eq('userId', userId))
+    .unique();
+  const names = [profile?.lichess, profile?.chesscom].filter(Boolean).map((n) => n!.toLowerCase());
+  return (game: { white: string; black: string }) =>
+    names.includes(game.white.toLowerCase()) ? ('w' as const) : names.includes(game.black.toLowerCase()) ? ('b' as const) : null;
+}
+
 /** Chats and what-ifs are counted up to this many per game in `list`. */
 const COUNT_CAP = 50;
 
@@ -92,13 +106,7 @@ export const list = query({
       .withIndex('by_ownerId', (q) => q.eq('ownerId', ownerId))
       .order('desc')
       .take(50);
-    const profile = await ctx.db
-      .query('profiles')
-      .withIndex('by_userId', (q) => q.eq('userId', ownerId))
-      .unique();
-    const names = [profile?.lichess, profile?.chesscom].filter(Boolean).map((n) => n!.toLowerCase());
-    const sideOf = (game: Doc<'games'>) =>
-      names.includes(game.white.toLowerCase()) ? ('w' as const) : names.includes(game.black.toLowerCase()) ? ('b' as const) : null;
+    const sideOf = await sideFinder(ctx, ownerId);
 
     return Promise.all(
       games.map(async ({ pgn: _pgn, shareToken: _token, ...game }) => {
@@ -112,7 +120,7 @@ export const list = query({
             .withIndex('by_gameId_and_source_and_ply', (q) => q.eq('gameId', game._id).eq('source', 'user'))
             .take(COUNT_CAP),
         ]);
-        return { ...game, yourSide: sideOf(game as Doc<'games'>), chats: chats.length, whatIfs: whatIfs.length };
+        return { ...game, yourSide: sideOf(game), chats: chats.length, whatIfs: whatIfs.length };
       }),
     );
   },
@@ -250,6 +258,8 @@ export const tree = query({
       game,
       role,
       ownerName: owner?.name ?? null,
+      // The side the owner played (from their chess-site usernames), so the board can start there.
+      ownerSide: full.ownerId ? (await sideFinder(ctx, full.ownerId))(full) : null,
       shareToken: role === 'owner' ? (shareToken ?? null) : null,
       nodes,
       analyses,
