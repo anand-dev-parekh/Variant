@@ -64,35 +64,38 @@ export function ApiKeyForm({ onDone }: { onDone?: () => void }) {
   );
 }
 
-/** "Using your Anthropic key ····abcd", with Change and Remove (which asks first). */
+/** "Using your Anthropic key ····abcd", with Change, and Remove (which asks first, in its own box). */
 export function ApiKeyStatus({ name, last4 }: { name: string; last4: string }) {
   const remove = useMutation(api.apiKeys.remove);
   const [mode, setMode] = useState<'shown' | 'changing' | 'removing'>('shown');
   if (mode === 'changing') return <ApiKeyForm onDone={() => setMode('shown')} />;
+  if (mode === 'removing') {
+    return (
+      <div className="api-key-confirm" role="group" aria-label="Confirm removing the key">
+        <p>
+          Remove your {name} key ····{last4}? You'll need to paste it again to ask the coach.
+        </p>
+        <div className="api-key-confirm-actions">
+          <button className="danger-solid" onClick={() => void remove()}>
+            Remove key
+          </button>
+          <button className="ghost" onClick={() => setMode('shown')}>
+            Cancel
+          </button>
+        </div>
+      </div>
+    );
+  }
   return (
     <p className="muted api-key-status">
       Using your {name} key ····{last4} ·{' '}
-      {mode === 'removing' ? (
-        <>
-          Remove it?{' '}
-          <button className="link danger" onClick={() => void remove()}>
-            Remove
-          </button>{' '}
-          <button className="link" onClick={() => setMode('shown')}>
-            Keep
-          </button>
-        </>
-      ) : (
-        <>
-          <button className="link" onClick={() => setMode('changing')}>
-            Change
-          </button>{' '}
-          ·{' '}
-          <button className="link" onClick={() => setMode('removing')}>
-            Remove
-          </button>
-        </>
-      )}
+      <button className="link" onClick={() => setMode('changing')}>
+        Change
+      </button>{' '}
+      ·{' '}
+      <button className="link" onClick={() => setMode('removing')}>
+        Remove
+      </button>
     </p>
   );
 }

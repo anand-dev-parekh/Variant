@@ -1336,8 +1336,22 @@ a {
   padding: 0;
   font-size: inherit;
 }
-.api-key-status button.link.danger {
-  align-self: auto;
+.api-key-confirm {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--panel);
+}
+.api-key-confirm p {
+  margin: 0;
+  font-size: 13px;
+}
+.api-key-confirm-actions {
+  display: flex;
+  gap: 8px;
 }
 
 .chat-error {
