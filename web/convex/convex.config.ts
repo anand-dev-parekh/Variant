@@ -7,12 +7,8 @@ const app = defineApp({
     /** Native engine service (engine/server.mjs). Required for analysis; see docs/engines.md. */
     ENGINE_URL: v.optional(v.string()),
     ENGINE_TOKEN: v.optional(v.string()),
-    /** LLM for node chat: `anthropic`, or NVIDIA NIM / any OpenAI-compatible API by default. See docs/chat.md. */
-    LLM_PROVIDER: v.optional(v.string()),
-    ANTHROPIC_API_KEY: v.optional(v.string()),
-    NVIDIA_API_KEY: v.optional(v.string()),
-    LLM_MODEL: v.optional(v.string()),
-    LLM_BASE_URL: v.optional(v.string()),
+    /** Encrypts users' own chat keys at rest: 32 random bytes, base64. See docs/chat.md. */
+    KEY_ENCRYPTION_SECRET: v.optional(v.string()),
     /** Convex Auth (docs/accounts.md): where OAuth redirects back to, the token signing keys, and the OAuth apps. */
     SITE_URL: v.optional(v.string()),
     JWT_PRIVATE_KEY: v.optional(v.string()),

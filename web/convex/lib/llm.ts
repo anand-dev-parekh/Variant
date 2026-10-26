@@ -1,13 +1,43 @@
 import { createAnthropic } from '@ai-sdk/anthropic';
 import { createOpenAICompatible } from '@ai-sdk/openai-compatible';
 import type { ProviderOptions } from '@ai-sdk/provider-utils';
-import { env } from '../_generated/server';
 
-/** NVIDIA NIM's hosted, OpenAI-compatible API. */
-const NIM_BASE_URL = 'https://integrate.api.nvidia.com/v1';
-/** Must return standard OpenAI tool calls: some NIM models (DeepSeek V4.1 Flash) emit raw tool tokens as text. */
-export const DEFAULT_NIM_MODEL = 'nvidia/nemotron-3-ultra-550b-a55b';
-export const DEFAULT_ANTHROPIC_MODEL = 'claude-opus-5-5';
+/** Where a user's chat key is from. Each user brings their own (docs/chat.md). */
+export type LlmProvider = 'anthropic' | 'openrouter';
+
+export const ANTHROPIC_MODEL = 'claude-opus-5-5';
+/** The same model through OpenRouter. */
+export const OPENROUTER_MODEL = 'anthropic/claude-opus-5.5';
+const OPENROUTER_BASE_URL = 'https://openrouter.ai/api/v1';
+
+/** The provider a pasted key belongs to, from its prefix, or null if it's neither. */
+export function providerOfKey(key: string): LlmProvider | null {
+  if (key.startsWith('sk-ant-')) return 'anthropic';
+  if (key.startsWith('sk-or-')) return 'openrouter';
+  return null;
+}
+
+export const PROVIDER_NAME: Record<LlmProvider, string> = { anthropic: 'Anthropic', openrouter: 'OpenRouter' };
+
+/**
+ * Checks a key with a free request (lists models, or reads the key's own info). Returns null if
+ * it works, else what to tell the user.
+ */
+export async function checkKey(provider: LlmProvider, key: string): Promise<string | null> {
+  const request =
+    provider === 'anthropic'
+      ? fetch('https://api.anthropic.com/v1/models?limit=1', { headers: { 'x-api-key': key, 'anthropic-version': '2023-06-01' } })
+      : fetch(`${OPENROUTER_BASE_URL}/key`, { headers: { authorization: `Bearer ${key}` } });
+  let res: Response;
+  try {
+    res = await request;
+  } catch {
+    return `Couldn't reach ${PROVIDER_NAME[provider]}. Try again.`;
+  }
+  if (res.ok) return null;
+  if (res.status === 401 || res.status === 403) return `${PROVIDER_NAME[provider]} didn't accept that key.`;
+  return `${PROVIDER_NAME[provider]} couldn't check the key (error ${res.status}). Try again.`;
+}
 
 type ChatModelConfig = {
   /** A provider model object (AI SDK 6), as the Agent requires. */
@@ -16,17 +46,11 @@ type ChatModelConfig = {
   providerOptions?: ProviderOptions;
 };
 
-/**
- * The chat model and its call settings, from LLM_PROVIDER (`anthropic`, or NVIDIA NIM by default),
- * LLM_MODEL and the provider's key. The only place that knows the provider. LLM_BASE_URL points
- * the NIM path at any other OpenAI-compatible API.
- */
-export function chatModelConfig(): ChatModelConfig {
-  if (env.LLM_PROVIDER === 'anthropic') {
-    const apiKey = env.ANTHROPIC_API_KEY;
-    if (!apiKey) throw new Error('Chat not configured: set ANTHROPIC_API_KEY (see docs/chat.md)');
+/** The chat model and its call settings for a user's key. The only place that knows the providers. */
+export function chatModelConfig(provider: LlmProvider, apiKey: string): ChatModelConfig {
+  if (provider === 'anthropic') {
     return {
-      languageModel: createAnthropic({ apiKey })(env.LLM_MODEL ?? DEFAULT_ANTHROPIC_MODEL),
+      languageModel: createAnthropic({ apiKey })(ANTHROPIC_MODEL),
       // Current Claude models reject sampling settings; thinking is adaptive and always on.
       callSettings: { maxRetries: 2 },
       providerOptions: {
@@ -44,12 +68,7 @@ export function chatModelConfig(): ChatModelConfig {
     };
   }
 
-  const apiKey = env.NVIDIA_API_KEY;
-  if (!apiKey) throw new Error('Chat not configured: set NVIDIA_API_KEY (see docs/chat.md)');
-  const provider = createOpenAICompatible({ name: 'nim', baseURL: env.LLM_BASE_URL ?? NIM_BASE_URL, apiKey });
-  return {
-    languageModel: provider.chatModel(env.LLM_MODEL ?? DEFAULT_NIM_MODEL),
-    // NIM's free tier is often briefly overloaded (503); the AI SDK backs off between retries.
-    callSettings: { temperature: 0.3, maxRetries: 4 },
-  };
+  // OpenRouter's API is OpenAI-compatible.
+  const openrouter = createOpenAICompatible({ name: 'openrouter', baseURL: OPENROUTER_BASE_URL, apiKey });
+  return { languageModel: openrouter.chatModel(OPENROUTER_MODEL), callSettings: { maxRetries: 2 } };
 }

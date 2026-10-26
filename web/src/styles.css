@@ -1259,6 +1259,87 @@ a {
   border-color: var(--accent);
 }
 
+/* The user's own LLM key (ApiKey.tsx) */
+.api-key-form {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.api-key-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.api-key-row input {
+  flex: 1;
+  min-width: 180px;
+  padding: 7px 10px;
+  font: 14px var(--font-mono);
+  color: inherit;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  outline: none;
+}
+.api-key-row input:focus {
+  border-color: var(--accent);
+}
+/* Home's coach strip and the settings page */
+.coach-key {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  max-width: 640px;
+  padding: 22px 0;
+}
+.settings {
+  max-width: 640px;
+  padding-top: 48px;
+}
+.settings h1 {
+  margin: 0 0 8px;
+  font-size: 36px;
+  letter-spacing: -0.3px;
+}
+.settings-section {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 24px 0;
+  border-bottom: 1px solid var(--border);
+}
+.settings-section h2 {
+  margin: 0;
+  font-size: 22px;
+}
+.settings-note,
+.settings-row {
+  margin: 0;
+  font-size: 14px;
+}
+.settings .site-connect {
+  padding: 0;
+}
+
+.api-key-note,
+.api-key-status {
+  margin: 0;
+  font-size: 12px;
+}
+.api-key-status {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 6px;
+}
+.api-key-status button.link {
+  padding: 0;
+  font-size: inherit;
+}
+.api-key-status button.link.danger {
+  align-self: auto;
+}
+
 .chat-error {
   margin: 0;
   font-size: 13px;

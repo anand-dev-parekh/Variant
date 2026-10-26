@@ -3,6 +3,16 @@
 Why things are the way they are. Newest first. Add an entry when you make a choice someone might
 later want to undo.
 
+## Users bring their own LLM key; stored encrypted on the server
+
+The app is free and its author doesn't fund the LLM, so each user pastes an Anthropic or
+OpenRouter key. The server stores it encrypted (AES-GCM, secret in an env var) because the reply
+runs in a scheduled action, whose arguments Convex stores anyway, and the agent's tool loop runs
+server-side. Rejected: keeping the key in the browser and calling the provider from there (a
+rewrite of the chat, the key exposed to page scripts, and one device only), and a server key with
+per-user limits (the author still pays). NIM's free models were dropped from the chat, since
+they gave ungrounded answers (below). OpenRouter's "connect" login could replace pasting later.
+
 ## Accounts with Convex Auth; shared links are read-only and include chats
 
 Sign-in runs inside the Convex deployment (Convex Auth with Google and GitHub) rather than a

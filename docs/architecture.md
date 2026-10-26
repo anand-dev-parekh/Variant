@@ -25,7 +25,7 @@ flowchart LR
     AG[(Agent component<br/>messages, streams)]
   end
   ES[Engine service<br/>engine/server.mjs<br/>native Stockfish 19]
-  LLM[NVIDIA NIM<br/>OpenAI-compatible LLM]
+  LLM[Claude, via the user's<br/>Anthropic or OpenRouter key]
 
   UI -- useQuery / useMutation --> Q
   Q --> DB
@@ -42,7 +42,7 @@ flowchart LR
 | Web app | `web/src/` | Vite + React 19. Board (react-chessboard), variation tree (React Flow), engine lines, move list |
 | Browser engine | `web/src/engine/` | Stockfish 19 lite (WASM) in a Web Worker. Live evals for positions the server hasn't analyzed. Never writes to the database |
 | Backend | `web/convex/` | Convex: schema, PGN import, the analysis pipeline, classification, tree queries, node chat. Reactive queries push updates to the browser live |
-| LLM | NVIDIA NIM (`lib/llm.ts`) | Explains positions in the chat, calling tools for every fact ([node chat](chat.md)) |
+| LLM | Claude Opus 5.5 on each user's own key (`lib/llm.ts`) | Explains positions in the chat, calling tools for every fact ([node chat](chat.md)) |
 | Engine service | `engine/` | Native Stockfish 19 behind a small authenticated HTTP API. Deployed separately (Docker) |
 | Shared logic | `packages/chess-core/` | Pure TypeScript used by both the browser and Convex: PGN/UCI parsing, scores and win %, move classification |
 

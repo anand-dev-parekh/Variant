@@ -1,7 +1,7 @@
 # Data model
 
 Defined in `web/convex/schema.ts`: `games`, `nodes`, `analyses`, `threads` for node chat, and
-`profiles` for chess site usernames, plus Convex Auth's tables (`users`, `authSessions`, …; see
+`profiles` for chess site usernames, `apiKeys` for users' own chat keys, plus Convex Auth's tables (`users`, `authSessions`, …; see
 [accounts](accounts.md)). Chat messages themselves live in the Convex Agent component's tables.
 
 ## `games`
@@ -95,6 +95,19 @@ A user's usernames on chess sites, for importing their recent games ([accounts](
 | --- | --- |
 | `userId` | The Convex Auth user |
 | `lichess?`, `chesscom?` | Usernames (letters, digits, `_`, `-`) |
+
+Index: `by_userId`.
+
+## `apiKeys`
+
+A user's own LLM key for the chat, one per user (`apiKeys.ts`, [node chat](chat.md)).
+
+| Field | Notes |
+| --- | --- |
+| `userId` | The Convex Auth user |
+| `provider` | `anthropic` or `openrouter`, from the key's prefix |
+| `last4` | The key's last four characters, the only part the page ever sees |
+| `ciphertext`, `iv` | The key, AES-256-GCM encrypted with `KEY_ENCRYPTION_SECRET` (`lib/secrets.ts`) |
 
 Index: `by_userId`.
 

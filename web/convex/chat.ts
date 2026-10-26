@@ -17,7 +17,9 @@ import { internalAction, internalMutation, internalQuery, mutation, query, type 
 import { ownedGame, readableGame } from './lib/access';
 import { scoreOfAnalysis } from './lib/cachedEngine';
 import { chatTools } from './lib/chatTools';
-import { chatModelConfig } from './lib/llm';
+import { hasKey } from './apiKeys';
+import { chatModelConfig, type LlmProvider } from './lib/llm';
+import { unseal } from './lib/secrets';
 
 /** Longest question accepted, in characters. */
 const MAX_QUESTION = 1000;
@@ -117,6 +119,9 @@ export const send = mutation({
     if (!node) throw new ConvexError('That position no longer exists.');
     const game = await ownedGame(ctx, node.gameId);
     if (game.status !== 'ready') throw new ConvexError('Chat opens once the game is analyzed.');
+    // Owned, so ownerId is set. The asker's key pays for the reply.
+    const userId = game.ownerId!;
+    if (!(await hasKey(ctx, userId))) throw new ConvexError('Add your API key to ask questions.');
 
     let threadId = (await threadRow(ctx, nodeId))?.threadId;
     if (!threadId) {
@@ -125,22 +130,28 @@ export const send = mutation({
     }
 
     const { messageId } = await saveMessage(ctx, components.agent, { threadId, prompt: question });
-    await ctx.scheduler.runAfter(0, internal.chat.respond, { nodeId, threadId, promptMessageId: messageId });
+    await ctx.scheduler.runAfter(0, internal.chat.respond, { nodeId, threadId, promptMessageId: messageId, userId });
     return threadId;
   },
 });
 
 /** Streams the reply to one question. Failures mark the reply failed, which the chat shows. */
 export const respond = internalAction({
-  args: { nodeId: v.id('nodes'), threadId: v.string(), promptMessageId: v.string() },
-  handler: async (ctx, { nodeId, threadId, promptMessageId }) => {
+  args: { nodeId: v.id('nodes'), threadId: v.string(), promptMessageId: v.string(), userId: v.id('users') },
+  handler: async (ctx, { nodeId, threadId, promptMessageId, userId }) => {
+    const sealed: { provider: LlmProvider; ciphertext: ArrayBuffer; iv: ArrayBuffer } | null = await ctx.runQuery(
+      internal.apiKeys.sealedFor,
+      { userId },
+    );
+    // Removed between asking and answering: the chat then asks for a key again.
+    if (!sealed) return;
     const sheet: FactSheet | null = await ctx.runQuery(internal.chat.factSheet, { nodeId });
     if (!sheet) return;
     const threads: EarlierThread[] = await ctx.runQuery(internal.chat.earlierThreadsInternal, { nodeId });
     const earlier = await earlierConversation(ctx, threads);
     const agent = new Agent(components.agent, {
       name: 'coach',
-      ...chatModelConfig(),
+      ...chatModelConfig(sealed.provider, await unseal(sealed, userId)),
       tools: chatTools({ nodeId, fen: sheet.fen }),
       stopWhen: stepCountIs(6),
       contextOptions: { recentMessages: 20 },

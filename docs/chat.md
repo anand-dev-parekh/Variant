@@ -78,28 +78,41 @@ analyses and game analyses are interchangeable.
 tactic, threat or evaluation only if the fact sheet or a tool shows it; check any move not in the
 fact sheet with `play_moves`, then `evaluate`; never read the board from the FEN; say so when the
 tools can't answer. It also asks the model to call its tools first and then write only the final
-answer. Temperature 0.3, at most 6 steps per reply, the last 20 messages of the thread as context, plus the earlier chats on the line (above).
+answer. At most 6 steps per reply, the last 20 messages of the thread as context, plus the earlier chats on the line (above).
 
 ## Model
 
-`web/convex/lib/llm.ts` is the only file that knows the provider. `LLM_PROVIDER` picks it:
-`anthropic` (Claude, through the AI SDK's Anthropic provider and its native API) or, by default,
-NVIDIA NIM through the AI SDK's OpenAI-compatible provider.
+Each user brings their own key; the app pays for no LLM calls. `web/convex/lib/llm.ts` is the
+only file that knows the providers:
 
-| Env var | Default | |
+| Key | Provider | Model |
 | --- | --- | --- |
-| `LLM_PROVIDER` | NIM | `anthropic` for Claude |
-| `ANTHROPIC_API_KEY` | | Required when `LLM_PROVIDER=anthropic` |
-| `NVIDIA_API_KEY` | | Required for NIM, from build.nvidia.com |
-| `LLM_MODEL` | `claude-opus-5-5` / `nvidia/nemotron-3-ultra-550b-a55b` | The provider's model id |
-| `LLM_BASE_URL` | `https://integrate.api.nvidia.com/v1` | NIM path only: any OpenAI-compatible API |
+| `sk-ant-…` | Anthropic, through the AI SDK's Anthropic provider | `ANTHROPIC_MODEL = 'claude-opus-5-5'` |
+| `sk-or-…` | OpenRouter, through the AI SDK's OpenAI-compatible provider | `OPENROUTER_MODEL = 'anthropic/claude-opus-5.5'` |
+
+### Users' keys
+
+- The chat panel asks for a key until there is one (`ApiKey.tsx`), then shows "Using your …
+  key ····abcd" with Change and Remove (which asks first). The same control is on the home
+  page and `#/settings`. Shared-game viewers can't ask, so they never need one.
+- `apiKeys.save` (an action) tells the provider from the prefix, checks the key with a free
+  request (`checkKey`: Anthropic's model list, OpenRouter's `/key`), then stores it.
+- Stored in `apiKeys`, AES-256-GCM encrypted (`lib/secrets.ts`) with `KEY_ENCRYPTION_SECRET`,
+  the user's id bound in as additional data. `apiKeys.mine` returns only the provider and last
+  four characters; nothing returns the key.
+- `chat.send` refuses without a key and schedules `respond` with the asker's user id (never the
+  key, since scheduled arguments are stored). `respond` decrypts it just before building the agent.
+- What it protects against: a leaked database export, the dashboard's data view, a query bug.
+  Not against whoever controls the deployment, who could decrypt; that's true of any server that
+  calls the model on a user's behalf. Users should set a spending limit with their provider.
 
 Claude: current models reject sampling settings (no `temperature`); thinking is adaptive and
 always on; `effort: 'medium'` is set explicitly; `fallbacks: 'default'` reruns a declined reply on a
 fallback model; and `thinking.blockBinding.prefixMismatchBehavior: 'drop_block'`. Opus 5.5 binds its
 thinking blocks to the exact system prompt, tools and history they were written with, and ours
 change (fact sheet updates, new tools, the 20-message window). Without `drop_block` every reply
-in an existing thread failed with a 400 after the tool list changed. NIM: temperature 0.3.
+in an existing thread failed with a 400 after the tool list changed. OpenRouter gets no
+provider options (default settings).
 
 If a reply fails before it streams, `respond` marks any pending reply in the thread `failed`, so
 the chat shows the error and accepts a new question instead of staying on "Thinking…".

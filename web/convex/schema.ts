@@ -125,4 +125,14 @@ export default defineSchema({
     lichess: v.optional(v.string()),
     chesscom: v.optional(v.string()),
   }).index('by_userId', ['userId']),
+
+  /** A user's own LLM key for the chat, encrypted (`lib/secrets.ts`); one per user. See `apiKeys.ts`. */
+  apiKeys: defineTable({
+    userId: v.id('users'),
+    provider: v.union(v.literal('anthropic'), v.literal('openrouter')),
+    /** The key's last four characters, all the page ever sees of it. */
+    last4: v.string(),
+    ciphertext: v.bytes(),
+    iv: v.bytes(),
+  }).index('by_userId', ['userId']),
 });

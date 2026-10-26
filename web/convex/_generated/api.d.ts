@@ -8,6 +8,7 @@
  * @module
  */
 
+import type * as apiKeys from "../apiKeys.js";
 import type * as auth from "../auth.js";
 import type * as branches from "../branches.js";
 import type * as chat from "../chat.js";
@@ -21,6 +22,7 @@ import type * as lib_chatTools from "../lib/chatTools.js";
 import type * as lib_chessSites from "../lib/chessSites.js";
 import type * as lib_llm from "../lib/llm.js";
 import type * as lib_remoteEngine from "../lib/remoteEngine.js";
+import type * as lib_secrets from "../lib/secrets.js";
 import type * as pipeline from "../pipeline.js";
 import type * as profiles from "../profiles.js";
 import type * as users from "../users.js";
@@ -32,6 +34,7 @@ import type {
 } from "convex/server";
 
 declare const fullApi: ApiFromModules<{
+  apiKeys: typeof apiKeys;
   auth: typeof auth;
   branches: typeof branches;
   chat: typeof chat;
@@ -45,6 +48,7 @@ declare const fullApi: ApiFromModules<{
   "lib/chessSites": typeof lib_chessSites;
   "lib/llm": typeof lib_llm;
   "lib/remoteEngine": typeof lib_remoteEngine;
+  "lib/secrets": typeof lib_secrets;
   pipeline: typeof pipeline;
   profiles: typeof profiles;
   users: typeof users;

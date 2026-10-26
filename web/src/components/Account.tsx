@@ -23,7 +23,7 @@ export function SignInButtons() {
   );
 }
 
-/** The header's account corner: who's signed in, with sign out. Nothing while signed out. */
+/** The header's account corner: who's signed in, with settings and sign out. Nothing while signed out. */
 export function UserMenu() {
   const { isAuthenticated } = useConvexAuth();
   const me = useQuery(api.users.me, isAuthenticated ? {} : 'skip');
@@ -39,6 +39,9 @@ export function UserMenu() {
         </span>
       )}
       <span className="user-name">{me.name}</span>
+      <a className="link" href="#/settings">
+        Settings
+      </a>
       <button className="link" onClick={() => void signOut().then(() => (window.location.hash = '#/'))}>
         Sign out
       </button>

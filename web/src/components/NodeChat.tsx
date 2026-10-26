@@ -4,6 +4,7 @@ import { ConvexError } from 'convex/values';
 import { useSmoothText, useUIMessages, type UIMessage } from '@convex-dev/agent/react';
 import { api } from '../../convex/_generated/api';
 import type { Id } from '../../convex/_generated/dataModel';
+import { ApiKeyForm, ApiKeyStatus } from './ApiKey';
 import { lineResolver, type LineLink, type TextPiece } from '../lib/chatLines';
 import type { GameTree, TreeNode } from '../lib/tree';
 import { moveLabel } from '../lib/treeLayout';
@@ -44,6 +45,9 @@ export function NodeChat({
   const threadId = useQuery(api.chat.threadFor, { nodeId: node._id, share });
   const earlier = useQuery(api.chat.earlierThreads, { nodeId: node._id, share }) ?? [];
   const send = useMutation(api.chat.send);
+  const apiKey = useQuery(api.apiKeys.mine, readOnly ? 'skip' : {});
+  // Asking needs the user's own key; until it loads, assume there is one.
+  const needsKey = !readOnly && apiKey === null;
   const { results: messages } = useUIMessages(
     api.chat.messages,
     threadId ? { threadId, share } : 'skip',
@@ -86,7 +90,7 @@ export function NodeChat({
       {messages.length === 0 && readOnly && earlier.length === 0 && (
         <p className="chat-note muted">No questions were asked about this move.</p>
       )}
-      {messages.length === 0 && !previewing && !readOnly && (
+      {messages.length === 0 && !previewing && !readOnly && !needsKey && (
         <div className="chat-suggestions">
           {suggestions(node, bestLabel).map((q) => (
             <button key={q} className="chat-suggestion ghost" disabled={busy} onClick={() => void ask(q)}>
@@ -105,7 +109,9 @@ export function NodeChat({
         </ol>
       )}
 
-      {readOnly ? null : previewing ? (
+      {readOnly ? null : needsKey ? (
+        <ApiKeyForm />
+      ) : previewing ? (
         <div className="chat-previewing">
           <p>
             You're previewing a line. {previewing.inTree ? 'Go to it in the tree' : 'Add it to the tree'} to ask about
@@ -137,6 +143,7 @@ export function NodeChat({
         </form>
       )}
       {error && <p className="chat-error">{error}</p>}
+      {!readOnly && apiKey && !previewing && <ApiKeyStatus name={apiKey.name} last4={apiKey.last4} />}
     </section>
   );
 }

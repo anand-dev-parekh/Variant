@@ -30,7 +30,6 @@ import type { DataModel } from "./dataModel.js";
 type Env = {
   readonly CONVEX_CLOUD_URL: string;
   readonly CONVEX_SITE_URL: string;
-  readonly ANTHROPIC_API_KEY: string | undefined;
   readonly AUTH_GITHUB_ID: string | undefined;
   readonly AUTH_GITHUB_SECRET: string | undefined;
   readonly AUTH_GOOGLE_ID: string | undefined;
@@ -39,10 +38,7 @@ type Env = {
   readonly ENGINE_URL: string | undefined;
   readonly JWKS: string | undefined;
   readonly JWT_PRIVATE_KEY: string | undefined;
-  readonly LLM_BASE_URL: string | undefined;
-  readonly LLM_MODEL: string | undefined;
-  readonly LLM_PROVIDER: string | undefined;
-  readonly NVIDIA_API_KEY: string | undefined;
+  readonly KEY_ENCRYPTION_SECRET: string | undefined;
   readonly SITE_URL: string | undefined;
 };
 

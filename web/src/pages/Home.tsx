@@ -2,6 +2,7 @@ import { useQuery } from 'convex/react';
 import { useState } from 'react';
 import { api } from '../../convex/_generated/api';
 import type { Site } from '../../convex/lib/chessSites';
+import { ApiKeySetting } from '../components/ApiKey';
 import { DeleteGame } from '../components/DeleteGame';
 import { ImportDialog, type ImportTab } from '../components/ImportDialog';
 import { MiniBoard } from '../components/MiniBoard';
@@ -56,6 +57,7 @@ export function Home() {
           <>
             <LatestGame game={games[0]!} />
             <Totals games={games} />
+            <CoachKey />
             <GameList games={games} />
           </>
         )}
@@ -189,6 +191,16 @@ function Stat({ value, label }: { value: number | string; label: string }) {
 }
 
 /** Totals across the games: record and blunders count only games where we know your side. */
+/** The coach's API key: add one here, or see which is in use. */
+function CoachKey() {
+  return (
+    <section className="coach-key" aria-label="Coach API key">
+      <h2 className="eyebrow-mono">Coach</h2>
+      <ApiKeySetting />
+    </section>
+  );
+}
+
 function Totals({ games }: { games: ListedGame[] }) {
   const outcomes = games.map((g) => outcomeFor(g.result, g.yourSide));
   const count = (o: Outcome) => outcomes.filter((x) => x === o).length;

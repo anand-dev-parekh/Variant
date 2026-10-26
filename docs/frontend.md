@@ -12,6 +12,7 @@ Hash routing in `App.tsx`, no router library:
 | `#/` (anything else) | `pages/HomePage.tsx`: signed out, `Landing`; signed in, `Home` (see below) |
 | `#/game/<id>` | `pages/GameView.tsx`: the explorer, for the game's owner |
 | `#/game/<id>/s/<token>` | The same explorer, read-only, for anyone with a share link (signed in or not). See [accounts](accounts.md) |
+| `#/settings` | `pages/Settings.tsx`: the coach's API key and the chess site usernames. Linked from the header's account menu |
 
 ## Home and landing (`Home`, `Landing`)
 
