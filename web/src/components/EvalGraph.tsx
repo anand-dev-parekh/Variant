@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type PointerEvent } from 'react';
+import { useCallback, useEffect, useMemo, useState, type PointerEvent } from 'react';
 import { formatScore, terminalScore, winPercent, type Score } from '@variant/chess-core';
 import type { Doc, Id } from '../../convex/_generated/dataModel';
 import type { GameTree, TreeNode } from '../lib/tree';
@@ -21,8 +21,7 @@ type Point = { node: TreeNode; score: Score; win: number };
  * or drag to jump to a move.
  */
 export function EvalGraph({ tree, analyses, selectedId, onSelect }: Props) {
-  const ref = useRef<HTMLDivElement>(null);
-  const width = useWidth(ref);
+  const [ref, width] = useWidth();
   const [hover, setHover] = useState<number | null>(null);
 
   const points = useMemo(
@@ -100,14 +99,18 @@ export function EvalGraph({ tree, analyses, selectedId, onSelect }: Props) {
   );
 }
 
-function useWidth(ref: React.RefObject<HTMLElement | null>) {
+/**
+ * A callback ref and the element's width. A callback ref (not useRef) because the graph renders
+ * nothing until the analyses load, so the element appears after the first render.
+ */
+function useWidth(): [(el: HTMLElement | null) => void, number] {
+  const [el, setEl] = useState<HTMLElement | null>(null);
   const [width, setWidth] = useState(0);
   useEffect(() => {
-    const el = ref.current;
     if (!el) return;
     const observer = new ResizeObserver(([entry]) => setWidth(Math.floor(entry!.contentRect.width)));
     observer.observe(el);
     return () => observer.disconnect();
-  }, [ref]);
-  return width;
+  }, [el]);
+  return [useCallback((node: HTMLElement | null) => setEl(node), []), width];
 }
