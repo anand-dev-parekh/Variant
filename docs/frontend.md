@@ -13,6 +13,7 @@ Hash routing in `App.tsx`, no router library:
 | `#/game/<id>` | `pages/GameView.tsx`: the explorer, for the game's owner |
 | `#/game/<id>/s/<token>` | The same explorer, read-only, for anyone with a share link (signed in or not). See [accounts](accounts.md) |
 | `#/settings` | `pages/Settings.tsx`: the coach's API key and the chess site usernames. Linked from the header's account menu |
+| `#/help` | `pages/Help.tsx`: how it works, as an FAQ (signed in or out). Linked from the account menu and the landing page. Its numbers (thresholds, depth, import count) are written out, so update it when those change |
 
 ## Home and landing (`Home`, `Landing`)
 

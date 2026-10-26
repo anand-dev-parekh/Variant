@@ -25,7 +25,7 @@ export function Landing() {
   return (
     <div className="v2">
       <SiteHeader>
-        <a className="site-header-link" href="#how">
+        <a className="site-header-link" href="#/help">
           How it works
         </a>
         <a className="site-header-link" href="#coach">
@@ -96,6 +96,9 @@ export function Landing() {
       </main>
       <footer className="site-footer">
         <span className="site-footer-mark">Variant</span>
+        <a className="site-header-link" href="#/help">
+          How it works and FAQ
+        </a>
       </footer>
     </div>
   );

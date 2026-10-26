@@ -1,13 +1,14 @@
 import { useEffect, useState } from 'react';
 import type { Id } from '../convex/_generated/dataModel';
 import { GameView } from './pages/GameView';
+import { Help } from './pages/Help';
 import { HomePage } from './pages/HomePage';
 import { Settings } from './pages/Settings';
 
 /**
  * Hash routes: `#/` is the landing page (signed out) or your games (signed in), `#/game/<id>`
  * explores one of yours, `#/game/<id>/s/<token>` opens a shared game read-only, `#/settings`
- * holds the API key and chess site usernames.
+ * holds the API key and chess site usernames, `#/help` is how it works (the FAQ).
  */
 export function App() {
   const [hash, setHash] = useState(window.location.hash);
@@ -20,5 +21,6 @@ export function App() {
 
   const [, gameId, share] = hash.match(/^#\/game\/(\w+)(?:\/s\/(\w+))?/) ?? [];
   if (hash.startsWith('#/settings')) return <Settings />;
+  if (hash.startsWith('#/help')) return <Help />;
   return gameId ? <GameView key={gameId} gameId={gameId as Id<'games'>} share={share} /> : <HomePage />;
 }

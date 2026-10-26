@@ -39,6 +39,9 @@ export function UserMenu() {
         </span>
       )}
       <span className="user-name">{me.name}</span>
+      <a className="link" href="#/help">
+        Help
+      </a>
       <a className="link" href="#/settings">
         Settings
       </a>

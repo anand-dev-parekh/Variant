@@ -22,6 +22,9 @@ export function Settings() {
         <Authenticated>
           <section className="settings-section">
             <h2>Coach API key</h2>
+            <p className="muted settings-note">
+              Why a key, and how it's kept: <a href="#/help">How it works</a>.
+            </p>
             <ApiKeySetting />
           </section>
           <section className="settings-section">
