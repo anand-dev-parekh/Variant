@@ -45,5 +45,3 @@ your own moves; they become what-if branches in the tree.
 - [x] M3: Tree view
 - [x] M4: Node chat
 - [x] M5: What-if branches
-- [ ] M6: Detectors + punchline
-- [ ] M7: Evaluation
