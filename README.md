@@ -3,6 +3,10 @@
 Chess Explorer prototype: turn one finished game into a tree of positions you can explore and question.
 Stockfish and deterministic code decide what is true; the LLM only explains it.
 
+
+Blog Post: https://anand-dev-parekh.github.io/posts/2026/10/28/variant/
+
+
 **Technical docs: [`docs/`](docs/README.md)** covers the architecture, data model, analysis pipeline,
 move classification, engines, frontend, development setup, and design decisions.
 
